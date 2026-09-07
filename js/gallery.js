@@ -21,6 +21,11 @@ let currentLightboxId = null;
 let currentLightboxData = null;
 let zoomController = null;
 
+let allPhotos = []; // [{id, data}], full list in current sort order
+let displayedList = []; // filtered subset actually shown (favorites or all)
+let currentIndex = -1; // index of the open lightbox photo within displayedList
+let showFavoritesOnly = false;
+
 function uploadToCloudinary(file, onProgress) {
   return new Promise((resolve, reject) => {
     const formData = new FormData();
@@ -70,13 +75,15 @@ function parseMusicUrl(url) {
   return null;
 }
 
-function songEmbedHtml(url) {
+function songEmbedHtml(url, { autoplay = false } = {}) {
   const parsed = parseMusicUrl(url);
   if (parsed?.platform === "spotify") {
-    return `<iframe src="${parsed.embedSrc}" height="152" frameborder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
+    const src = autoplay ? `${parsed.embedSrc}?autoplay=1` : parsed.embedSrc;
+    return `<iframe src="${src}" height="152" frameborder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
   }
   if (parsed?.platform === "youtube") {
-    return `<div class="yt-embed"><iframe src="${parsed.embedSrc}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`;
+    const src = autoplay ? `${parsed.embedSrc}?autoplay=1` : parsed.embedSrc;
+    return `<div class="yt-embed"><iframe src="${src}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`;
   }
   return `<a href="${url}" target="_blank" rel="noopener noreferrer">Listen ↗</a>`;
 }
@@ -273,10 +280,18 @@ async function handleComposerSubmit(e) {
 
 /* ---------- Gallery ---------- */
 
-function renderPhoto(docSnap) {
-  const data = docSnap.data();
-  const item = document.createElement("div");
-  item.className = "gallery-item";
+async function toggleFavorite(id, currentValue) {
+  try {
+    await updateDoc(doc(db, "photos", id), { favorite: !currentValue });
+  } catch (err) {
+    console.error("Couldn't toggle favorite:", err);
+  }
+}
+
+function renderPhoto(item, index) {
+  const { id, data } = item;
+  const el = document.createElement("div");
+  el.className = "gallery-item";
 
   const textHtml = data.caption
     ? `<p class="gallery-title">${escapeHtml(data.caption)}</p>${
@@ -284,21 +299,70 @@ function renderPhoto(docSnap) {
       }`
     : `<p class="gallery-meta">by ${escapeHtml(data.uploadedBy || "someone")}</p>`;
 
-  item.innerHTML = `
+  el.innerHTML = `
     <div class="gallery-img-wrap">
       <img src="${data.url}" alt="A shared memory" loading="lazy" />
+      <button type="button" class="fav-btn ${data.favorite ? "active" : ""}" aria-label="Favorite">${
+    data.favorite ? "♥" : "♡"
+  }</button>
       ${data.songUrl ? '<span class="song-badge">🎵</span>' : ""}
     </div>
     <div class="gallery-caption">${textHtml}</div>
   `;
 
-  const img = item.querySelector("img");
-  img.addEventListener("load", () => item.classList.add("loaded"));
-  item.addEventListener("click", () => openLightbox(docSnap.id, data));
-  return item;
+  const img = el.querySelector("img");
+  img.addEventListener("load", () => el.classList.add("loaded"));
+  el.addEventListener("click", () => openLightboxAt(index));
+
+  el.querySelector(".fav-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleFavorite(id, !!data.favorite);
+  });
+
+  return el;
 }
 
-function openLightbox(id, data) {
+function applyFilter() {
+  displayedList = showFavoritesOnly ? allPhotos.filter((p) => p.data.favorite) : allPhotos;
+}
+
+function renderGrid() {
+  const grid = document.getElementById("gallery-grid");
+  const emptyState = document.getElementById("gallery-empty");
+  applyFilter();
+  grid.innerHTML = "";
+
+  if (displayedList.length === 0) {
+    emptyState.classList.remove("hidden");
+    emptyState.querySelector(".empty-title").textContent = showFavoritesOnly
+      ? "No favorites yet"
+      : "No photos yet";
+    emptyState.querySelector(".empty-subtitle").textContent = showFavoritesOnly
+      ? "Tap the heart on a photo to save it here"
+      : "Add the first one to start the story";
+    return;
+  }
+
+  emptyState.classList.add("hidden");
+  displayedList.forEach((item, index) => grid.appendChild(renderPhoto(item, index)));
+}
+
+function updateFavFilterButton() {
+  const btn = document.getElementById("fav-filter-btn");
+  btn.classList.toggle("active", showFavoritesOnly);
+  btn.textContent = showFavoritesOnly ? "♥ Favorites" : "♡ All";
+}
+
+function updateLightboxFavButton(isFav) {
+  const btn = document.getElementById("lightbox-fav");
+  btn.textContent = isFav ? "♥" : "♡";
+  btn.classList.toggle("active", !!isFav);
+}
+
+function openLightboxAt(index) {
+  if (!displayedList.length) return;
+  currentIndex = ((index % displayedList.length) + displayedList.length) % displayedList.length;
+  const { id, data } = displayedList[currentIndex];
   currentLightboxId = id;
   currentLightboxData = data;
 
@@ -314,10 +378,20 @@ function openLightbox(id, data) {
   subcaptionEl.classList.toggle("hidden", !data.subcaption);
 
   const songEl = document.getElementById("lightbox-song");
-  songEl.innerHTML = data.songUrl ? songEmbedHtml(data.songUrl) : "";
+  songEl.innerHTML = data.songUrl ? songEmbedHtml(data.songUrl, { autoplay: true }) : "";
   songEl.classList.toggle("hidden", !data.songUrl);
 
+  updateLightboxFavButton(data.favorite);
+
   document.getElementById("lightbox").classList.add("active");
+}
+
+function showNextPhoto() {
+  if (currentIndex >= 0) openLightboxAt(currentIndex + 1);
+}
+
+function showPrevPhoto() {
+  if (currentIndex >= 0) openLightboxAt(currentIndex - 1);
 }
 
 function closeLightbox() {
@@ -326,14 +400,76 @@ function closeLightbox() {
   document.getElementById("lightbox-song").innerHTML = "";
   currentLightboxId = null;
   currentLightboxData = null;
+  currentIndex = -1;
   zoomController?.reset();
 }
 
-export function initGallery() {
-  const grid = document.getElementById("gallery-grid");
-  const emptyState = document.getElementById("gallery-empty");
+function findOnThisDayPhoto(list) {
+  const today = new Date();
+  const todayMonth = today.getMonth();
+  const todayDate = today.getDate();
+  const currentYear = today.getFullYear();
 
-  zoomController = initZoom(document.getElementById("lightbox-img"));
+  let best = null;
+  for (const item of list) {
+    const ts = item.data.createdAt;
+    if (!ts?.toDate) continue;
+    const d = ts.toDate();
+    if (d.getMonth() === todayMonth && d.getDate() === todayDate && d.getFullYear() < currentYear) {
+      if (!best || d.getFullYear() > best.date.getFullYear()) {
+        best = { item, date: d };
+      }
+    }
+  }
+  return best;
+}
+
+function renderOnThisDay() {
+  const container = document.getElementById("on-this-day");
+  const match = findOnThisDayPhoto(allPhotos);
+
+  if (!match) {
+    container.classList.add("hidden");
+    container.innerHTML = "";
+    container.onclick = null;
+    return;
+  }
+
+  const years = new Date().getFullYear() - match.date.getFullYear();
+  const yearsLabel = years === 1 ? "1 year ago" : `${years} years ago`;
+  const { item } = match;
+
+  container.innerHTML = `
+    <img src="${item.data.url}" alt="" />
+    <div class="on-this-day-text">
+      <p class="on-this-day-label">✨ On this day, ${yearsLabel}</p>
+      <p class="on-this-day-title">${escapeHtml(item.data.caption || "a memory")}</p>
+    </div>
+  `;
+  container.classList.remove("hidden");
+
+  container.onclick = () => {
+    if (showFavoritesOnly) {
+      showFavoritesOnly = false;
+      updateFavFilterButton();
+      renderGrid();
+    }
+    const idx = displayedList.findIndex((p) => p.id === item.id);
+    if (idx >= 0) openLightboxAt(idx);
+  };
+}
+
+export function initGallery() {
+  zoomController = initZoom(document.getElementById("lightbox-img"), {
+    onSwipeLeft: showNextPhoto,
+    onSwipeRight: showPrevPhoto,
+  });
+
+  document.getElementById("fav-filter-btn").addEventListener("click", () => {
+    showFavoritesOnly = !showFavoritesOnly;
+    updateFavFilterButton();
+    renderGrid();
+  });
 
   document.getElementById("add-photo-btn").addEventListener("click", openComposerForAdd);
   document.getElementById("composer-close").addEventListener("click", closeComposer);
@@ -357,6 +493,8 @@ export function initGallery() {
   });
 
   document.getElementById("lightbox-close").addEventListener("click", closeLightbox);
+  document.getElementById("lightbox-prev").addEventListener("click", showPrevPhoto);
+  document.getElementById("lightbox-next").addEventListener("click", showNextPhoto);
   document.getElementById("lightbox").addEventListener("click", (e) => {
     if (e.target.id === "lightbox") closeLightbox();
   });
@@ -367,18 +505,34 @@ export function initGallery() {
     closeLightbox();
     openComposerForEdit(id, data);
   });
+  document.getElementById("lightbox-fav").addEventListener("click", async () => {
+    if (!currentLightboxId) return;
+    const newVal = !currentLightboxData.favorite;
+    currentLightboxData.favorite = newVal;
+    updateLightboxFavButton(newVal);
+    try {
+      await updateDoc(doc(db, "photos", currentLightboxId), { favorite: newVal });
+    } catch (err) {
+      console.error("Couldn't toggle favorite:", err);
+      currentLightboxData.favorite = !newVal;
+      updateLightboxFavButton(!newVal);
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (!document.getElementById("lightbox").classList.contains("active")) return;
+    if (e.key === "ArrowLeft") showPrevPhoto();
+    else if (e.key === "ArrowRight") showNextPhoto();
+    else if (e.key === "Escape") closeLightbox();
+  });
 
   const q = query(photosCol, orderBy("createdAt", "desc"));
   onSnapshot(
     q,
     (snapshot) => {
-      grid.innerHTML = "";
-      if (snapshot.empty) {
-        emptyState.classList.remove("hidden");
-        return;
-      }
-      emptyState.classList.add("hidden");
-      snapshot.forEach((docSnap) => grid.appendChild(renderPhoto(docSnap)));
+      allPhotos = snapshot.docs.map((docSnap) => ({ id: docSnap.id, data: docSnap.data() }));
+      renderGrid();
+      renderOnThisDay();
     },
     (err) => console.error("Gallery listener error:", err)
   );

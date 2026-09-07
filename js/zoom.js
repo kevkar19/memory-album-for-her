@@ -5,7 +5,9 @@ const MIN_SCALE = 1;
 const MAX_SCALE = 4;
 const DOUBLE_TAP_MS = 300;
 
-export function initZoom(img) {
+const SWIPE_THRESHOLD = 50;
+
+export function initZoom(img, { onSwipeLeft, onSwipeRight } = {}) {
   let scale = 1;
   let originX = 0;
   let originY = 0;
@@ -17,6 +19,9 @@ export function initZoom(img) {
   let panOriginX = 0;
   let panOriginY = 0;
   let lastTapTime = 0;
+  let gestureStartScale = 1;
+  let dragStartX = 0;
+  let dragStartY = 0;
 
   img.style.touchAction = "none";
   img.style.transformOrigin = "center center";
@@ -71,6 +76,9 @@ export function initZoom(img) {
       panStartY = e.clientY;
       panOriginX = originX;
       panOriginY = originY;
+      gestureStartScale = scale;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
 
       if (e.pointerType === "touch") {
         const now = Date.now();
@@ -100,10 +108,22 @@ export function initZoom(img) {
     }
   });
 
+  function handlePointerUp(e) {
+    if (pointers.size === 1 && gestureStartScale === 1 && scale === 1) {
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        if (dx < 0) onSwipeLeft?.();
+        else onSwipeRight?.();
+      }
+    }
+    pointers.delete(e.pointerId);
+  }
+
   function endPointer(e) {
     pointers.delete(e.pointerId);
   }
-  img.addEventListener("pointerup", endPointer);
+  img.addEventListener("pointerup", handlePointerUp);
   img.addEventListener("pointercancel", endPointer);
   img.addEventListener("pointerleave", endPointer);
 
