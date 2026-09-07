@@ -11,6 +11,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./cloudinary-config.js";
 import { escapeHtml } from "./utils.js";
+import { initZoom } from "./zoom.js";
 
 const photosCol = collection(db, "photos");
 
@@ -18,6 +19,7 @@ let selectedFiles = [];
 let editingId = null; // null = add mode, otherwise the id of the photo being edited
 let currentLightboxId = null;
 let currentLightboxData = null;
+let zoomController = null;
 
 function uploadToCloudinary(file, onProgress) {
   return new Promise((resolve, reject) => {
@@ -300,6 +302,7 @@ function openLightbox(id, data) {
   currentLightboxId = id;
   currentLightboxData = data;
 
+  zoomController?.reset();
   document.getElementById("lightbox-img").src = data.url;
 
   const captionEl = document.getElementById("lightbox-caption");
@@ -323,11 +326,14 @@ function closeLightbox() {
   document.getElementById("lightbox-song").innerHTML = "";
   currentLightboxId = null;
   currentLightboxData = null;
+  zoomController?.reset();
 }
 
 export function initGallery() {
   const grid = document.getElementById("gallery-grid");
   const emptyState = document.getElementById("gallery-empty");
+
+  zoomController = initZoom(document.getElementById("lightbox-img"));
 
   document.getElementById("add-photo-btn").addEventListener("click", openComposerForAdd);
   document.getElementById("composer-close").addEventListener("click", closeComposer);
