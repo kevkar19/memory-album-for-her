@@ -803,7 +803,8 @@ main {
 
 #composer-caption,
 #composer-subcaption,
-#composer-song {
+#composer-song,
+#composer-song-start {
   padding: 11px 13px;
   border-radius: 11px;
   border: 1px solid var(--blush);
@@ -817,10 +818,18 @@ main {
 
 #composer-caption:focus,
 #composer-subcaption:focus,
-#composer-song:focus {
+#composer-song:focus,
+#composer-song-start:focus {
   outline: none;
   border-color: var(--rose);
   box-shadow: 0 0 0 4px rgba(233, 140, 160, 0.12);
+}
+
+.composer-field-hint {
+  font-size: 11.5px;
+  color: var(--text-soft);
+  margin: -4px 0 0;
+  line-height: 1.4;
 }
 
 .composer-progress {

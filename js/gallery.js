@@ -50,6 +50,73 @@ function uploadToCloudinary(file, onProgress) {
   });
 }
 
+const CLIP_LENGTH_SECONDS = 20;
+let ytApiPromise = null;
+let currentYtPlayer = null;
+
+// Loading the plain embed URL with start/end/loop params only loops the
+// WHOLE video from 0 after the first pass through the clip — verified this
+// empirically rather than trusting the commonly-cited trick. A real clip
+// loop needs the IFrame Player API: listen for ENDED and seek back to
+// `start` manually.
+function loadYouTubeApi() {
+  if (ytApiPromise) return ytApiPromise;
+  ytApiPromise = new Promise((resolve) => {
+    if (window.YT?.Player) {
+      resolve(window.YT);
+      return;
+    }
+    const previous = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      previous?.();
+      resolve(window.YT);
+    };
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(tag);
+  });
+  return ytApiPromise;
+}
+
+function destroyYtPlayer() {
+  if (currentYtPlayer) {
+    try {
+      currentYtPlayer.destroy();
+    } catch (e) {
+      // ignore — container may already be gone
+    }
+    currentYtPlayer = null;
+  }
+}
+
+async function mountYouTubeLoopPlayer(container, videoId, start) {
+  const YT = await loadYouTubeApi();
+  if (!document.body.contains(container)) return; // lightbox moved on while the API loaded
+
+  const targetId = `yt-loop-player-${Date.now()}`;
+  container.innerHTML = `<div class="yt-embed"><div id="${targetId}"></div></div>`;
+
+  currentYtPlayer = new YT.Player(targetId, {
+    width: "100%",
+    height: "100%",
+    videoId,
+    playerVars: {
+      start,
+      end: start + CLIP_LENGTH_SECONDS,
+      autoplay: 1,
+      playsinline: 1,
+    },
+    events: {
+      onStateChange: (e) => {
+        if (e.data === YT.PlayerState.ENDED) {
+          e.target.seekTo(start, true);
+          e.target.playVideo();
+        }
+      },
+    },
+  });
+}
+
 function parseMusicUrl(url) {
   try {
     const u = new URL(url);
@@ -58,17 +125,18 @@ function parseMusicUrl(url) {
       const parts = u.pathname.split("/").filter(Boolean); // [type, id]
       if (parts.length >= 2) {
         const [type, id] = parts;
-        return { platform: "spotify", embedSrc: `https://open.spotify.com/embed/${type}/${id}` };
+        return { platform: "spotify", id, embedSrc: `https://open.spotify.com/embed/${type}/${id}` };
       }
     }
 
     if (u.hostname.includes("youtube.com") && u.searchParams.get("v")) {
-      return { platform: "youtube", embedSrc: `https://www.youtube.com/embed/${u.searchParams.get("v")}` };
+      const id = u.searchParams.get("v");
+      return { platform: "youtube", id, embedSrc: `https://www.youtube.com/embed/${id}` };
     }
 
     if (u.hostname === "youtu.be") {
       const id = u.pathname.slice(1);
-      return { platform: "youtube", embedSrc: `https://www.youtube.com/embed/${id}` };
+      return { platform: "youtube", id, embedSrc: `https://www.youtube.com/embed/${id}` };
     }
   } catch (e) {
     return null;
@@ -76,6 +144,27 @@ function parseMusicUrl(url) {
   return null;
 }
 
+function parseTimeToSeconds(input) {
+  const trimmed = (input || "").trim();
+  if (!trimmed) return null;
+  if (trimmed.includes(":")) {
+    const parts = trimmed.split(":").map((p) => parseInt(p, 10));
+    if (parts.some((p) => Number.isNaN(p))) return null;
+    return parts.reduce((acc, p) => acc * 60 + p, 0);
+  }
+  const n = parseInt(trimmed, 10);
+  return Number.isNaN(n) ? null : n;
+}
+
+function formatSecondsToTime(totalSeconds) {
+  if (!totalSeconds && totalSeconds !== 0) return "";
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+// Non-looping embed: used for Spotify (no clip-loop support) and for
+// YouTube links with no chosen clip start (plays normally from the top).
 function songEmbedHtml(url, { autoplay = false } = {}) {
   const parsed = parseMusicUrl(url);
   if (parsed?.platform === "spotify") {
@@ -112,6 +201,7 @@ function resetComposer() {
   document.getElementById("composer-caption").value = "";
   document.getElementById("composer-subcaption").value = "";
   document.getElementById("composer-song").value = "";
+  document.getElementById("composer-song-start").value = "";
   document.getElementById("composer-caption-fields").classList.remove("hidden");
   document.getElementById("composer-multi-hint").classList.add("hidden");
   document.getElementById("composer-error").textContent = "";
@@ -175,6 +265,7 @@ function openComposerForEdit(id, data) {
   document.getElementById("composer-caption").value = data.caption || "";
   document.getElementById("composer-subcaption").value = data.subcaption || "";
   document.getElementById("composer-song").value = data.songUrl || "";
+  document.getElementById("composer-song-start").value = formatSecondsToTime(data.songStart);
   document.getElementById("composer-submit").textContent = "Save";
   document.getElementById("composer-overlay").classList.remove("hidden");
 }
@@ -190,16 +281,27 @@ async function handleComposerSubmit(e) {
   const captionInput = document.getElementById("composer-caption");
   const subcaptionInput = document.getElementById("composer-subcaption");
   const songInput = document.getElementById("composer-song");
+  const songStartInput = document.getElementById("composer-song-start");
   errorEl.textContent = "";
 
   const isMulti = !editingId && selectedFiles.length > 1;
   const caption = isMulti ? "" : captionInput.value.trim();
   const subcaption = isMulti ? "" : subcaptionInput.value.trim();
   const songUrl = isMulti ? "" : songInput.value.trim();
+  const songStartRaw = isMulti ? "" : songStartInput.value.trim();
 
   if (songUrl && !parseMusicUrl(songUrl)) {
     errorEl.textContent = "That link doesn't look like Spotify or YouTube.";
     return;
+  }
+
+  let songStart = null;
+  if (songUrl && songStartRaw) {
+    songStart = parseTimeToSeconds(songStartRaw);
+    if (songStart === null || songStart < 0) {
+      errorEl.textContent = "That start time doesn't look right — try mm:ss.";
+      return;
+    }
   }
 
   if (editingId) {
@@ -210,6 +312,7 @@ async function handleComposerSubmit(e) {
         caption: caption || null,
         subcaption: subcaption || null,
         songUrl: songUrl || null,
+        songStart: songStart,
       });
       closeComposer();
     } catch (err) {
@@ -253,6 +356,7 @@ async function handleComposerSubmit(e) {
         caption: caption || null,
         subcaption: subcaption || null,
         songUrl: songUrl || null,
+        songStart: songStart,
         createdAt: serverTimestamp(),
       });
 
@@ -379,8 +483,18 @@ function openLightboxAt(index) {
   subcaptionEl.classList.toggle("hidden", !data.subcaption);
 
   const songEl = document.getElementById("lightbox-song");
-  songEl.innerHTML = data.songUrl ? songEmbedHtml(data.songUrl, { autoplay: true }) : "";
+  destroyYtPlayer();
+  songEl.innerHTML = "";
   songEl.classList.toggle("hidden", !data.songUrl);
+
+  if (data.songUrl) {
+    const parsedSong = parseMusicUrl(data.songUrl);
+    if (parsedSong?.platform === "youtube" && data.songStart != null) {
+      mountYouTubeLoopPlayer(songEl, parsedSong.id, data.songStart);
+    } else {
+      songEl.innerHTML = songEmbedHtml(data.songUrl, { autoplay: true });
+    }
+  }
 
   updateLightboxFavButton(data.favorite);
 
@@ -402,6 +516,7 @@ function showPrevPhoto() {
 function closeLightbox() {
   document.getElementById("lightbox").classList.remove("active");
   document.getElementById("lightbox-img").src = "";
+  destroyYtPlayer();
   document.getElementById("lightbox-song").innerHTML = "";
   currentLightboxId = null;
   currentLightboxData = null;
