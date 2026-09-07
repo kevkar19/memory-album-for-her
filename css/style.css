@@ -505,6 +505,21 @@ main {
   transition: background 0.15s ease;
 }
 
+.lock-btn {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  font-size: 14px;
+  box-shadow: var(--shadow);
+}
+
+@media (hover: hover) {
+  .lock-btn:hover {
+    background: var(--blush);
+  }
+}
+
 /* ================= Composer modal ================= */
 .composer-overlay {
   position: fixed;

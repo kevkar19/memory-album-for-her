@@ -19,7 +19,19 @@ function showApp() {
   document.getElementById("app").classList.remove("hidden");
 }
 
+function lockApp() {
+  localStorage.removeItem(STORAGE_KEY);
+  document.getElementById("app").classList.add("hidden");
+  const input = document.getElementById("gate-input");
+  const error = document.getElementById("gate-error");
+  input.value = "";
+  error.textContent = "";
+  document.getElementById("gate-overlay").classList.remove("hidden");
+}
+
 export function initGate() {
+  document.getElementById("lock-btn").addEventListener("click", lockApp);
+
   if (localStorage.getItem(STORAGE_KEY) === "true") {
     showApp();
     return;
