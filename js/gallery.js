@@ -14,7 +14,7 @@ import { escapeHtml } from "./utils.js";
 
 const photosCol = collection(db, "photos");
 
-let selectedFile = null;
+let selectedFiles = [];
 let editingId = null; // null = add mode, otherwise the id of the photo being edited
 let currentLightboxId = null;
 let currentLightboxData = null;
@@ -87,17 +87,22 @@ function getUploaderName() {
 /* ---------- Composer (add / edit) ---------- */
 
 function resetComposer() {
-  selectedFile = null;
+  selectedFiles = [];
   editingId = null;
 
   document.getElementById("composer-file-input").value = "";
   const preview = document.getElementById("composer-preview");
   preview.src = "";
   preview.classList.add("hidden");
+  const thumbs = document.getElementById("composer-thumbs");
+  thumbs.innerHTML = "";
+  thumbs.classList.add("hidden");
   document.getElementById("composer-picker-text").classList.remove("hidden");
-  document.getElementById("composer-picker-text").textContent = "Tap to choose a photo";
+  document.getElementById("composer-picker-text").textContent = "Tap to choose photos";
   document.getElementById("composer-caption").value = "";
   document.getElementById("composer-song").value = "";
+  document.getElementById("composer-caption-fields").classList.remove("hidden");
+  document.getElementById("composer-multi-hint").classList.add("hidden");
   document.getElementById("composer-error").textContent = "";
   document.getElementById("composer-progress").classList.add("hidden");
   document.getElementById("composer-progress-text").textContent = "Uploading... 0%";
@@ -105,6 +110,37 @@ function resetComposer() {
   const submitBtn = document.getElementById("composer-submit");
   submitBtn.disabled = false;
   submitBtn.textContent = "Share";
+}
+
+function renderComposerSelection() {
+  const preview = document.getElementById("composer-preview");
+  const thumbs = document.getElementById("composer-thumbs");
+  const pickerText = document.getElementById("composer-picker-text");
+  const captionFields = document.getElementById("composer-caption-fields");
+  const multiHint = document.getElementById("composer-multi-hint");
+  const submitBtn = document.getElementById("composer-submit");
+
+  pickerText.classList.add("hidden");
+
+  if (selectedFiles.length === 1) {
+    preview.src = URL.createObjectURL(selectedFiles[0]);
+    preview.classList.remove("hidden");
+    thumbs.innerHTML = "";
+    thumbs.classList.add("hidden");
+    captionFields.classList.remove("hidden");
+    multiHint.classList.add("hidden");
+    submitBtn.textContent = "Share";
+  } else {
+    preview.classList.add("hidden");
+    preview.src = "";
+    thumbs.innerHTML = selectedFiles
+      .map((f) => `<img src="${URL.createObjectURL(f)}" alt="" />`)
+      .join("");
+    thumbs.classList.remove("hidden");
+    captionFields.classList.add("hidden");
+    multiHint.classList.remove("hidden");
+    submitBtn.textContent = `Share ${selectedFiles.length} photos`;
+  }
 }
 
 function openComposerForAdd() {
@@ -143,8 +179,9 @@ async function handleComposerSubmit(e) {
   const songInput = document.getElementById("composer-song");
   errorEl.textContent = "";
 
-  const caption = captionInput.value.trim();
-  const songUrl = songInput.value.trim();
+  const isMulti = !editingId && selectedFiles.length > 1;
+  const caption = isMulti ? "" : captionInput.value.trim();
+  const songUrl = isMulti ? "" : songInput.value.trim();
 
   if (songUrl && !parseMusicUrl(songUrl)) {
     errorEl.textContent = "That link doesn't look like Spotify or YouTube.";
@@ -169,8 +206,8 @@ async function handleComposerSubmit(e) {
     return;
   }
 
-  if (!selectedFile) {
-    errorEl.textContent = "Choose a photo first.";
+  if (!selectedFiles.length) {
+    errorEl.textContent = "Choose at least one photo.";
     return;
   }
 
@@ -179,29 +216,51 @@ async function handleComposerSubmit(e) {
   const progressText = document.getElementById("composer-progress-text");
   progress.classList.remove("hidden");
 
-  try {
-    const result = await uploadToCloudinary(selectedFile, (pct) => {
-      progressText.textContent = `Uploading... ${pct}%`;
-    });
+  const total = selectedFiles.length;
+  const uploader = getUploaderName();
+  const stillFailed = [];
+  let successCount = 0;
 
-    await addDoc(photosCol, {
-      url: result.secure_url,
-      publicId: result.public_id,
-      width: result.width || null,
-      height: result.height || null,
-      uploadedBy: getUploaderName(),
-      caption: caption || null,
-      songUrl: songUrl || null,
-      createdAt: serverTimestamp(),
-    });
+  for (let i = 0; i < selectedFiles.length; i++) {
+    const file = selectedFiles[i];
+    try {
+      const result = await uploadToCloudinary(file, (pct) => {
+        progressText.textContent =
+          total > 1 ? `Uploading photo ${i + 1} of ${total}... ${pct}%` : `Uploading... ${pct}%`;
+      });
 
-    closeComposer();
-  } catch (err) {
-    console.error(err);
-    errorEl.textContent = "Couldn't upload — try again?";
-    progress.classList.add("hidden");
-    submitBtn.disabled = false;
+      await addDoc(photosCol, {
+        url: result.secure_url,
+        publicId: result.public_id,
+        width: result.width || null,
+        height: result.height || null,
+        uploadedBy: uploader,
+        caption: caption || null,
+        songUrl: songUrl || null,
+        createdAt: serverTimestamp(),
+      });
+
+      successCount++;
+    } catch (err) {
+      console.error(err);
+      stillFailed.push(file);
+    }
   }
+
+  progress.classList.add("hidden");
+
+  if (stillFailed.length === 0) {
+    closeComposer();
+    return;
+  }
+
+  selectedFiles = stillFailed;
+  renderComposerSelection();
+  submitBtn.disabled = false;
+  errorEl.textContent =
+    successCount > 0
+      ? `${successCount} uploaded, ${stillFailed.length} failed — try again?`
+      : "Couldn't upload — try again?";
 }
 
 /* ---------- Gallery ---------- */
@@ -264,13 +323,10 @@ export function initGallery() {
   document.getElementById("composer-form").addEventListener("submit", handleComposerSubmit);
 
   document.getElementById("composer-file-input").addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    selectedFile = file;
-    const preview = document.getElementById("composer-preview");
-    preview.src = URL.createObjectURL(file);
-    preview.classList.remove("hidden");
-    document.getElementById("composer-picker-text").classList.add("hidden");
+    const files = Array.from(e.target.files).filter((f) => f.type.startsWith("image/"));
+    if (!files.length) return;
+    selectedFiles = files;
+    renderComposerSelection();
   });
 
   const savedUploader = localStorage.getItem("fh_uploader_name");

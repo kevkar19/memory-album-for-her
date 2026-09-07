@@ -595,6 +595,32 @@ main {
   display: block;
 }
 
+.composer-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px;
+  width: 100%;
+}
+
+.composer-thumbs img {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 3px 8px rgba(178, 76, 99, 0.18);
+}
+
+.composer-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-soft);
+  background: var(--cream-deep);
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin: 0;
+}
+
 .composer-box.mode-edit .composer-picker {
   pointer-events: none;
   border-style: solid;
@@ -623,6 +649,12 @@ main {
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
+}
+
+.composer-caption-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 #composer-caption,

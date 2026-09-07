@@ -78,9 +78,10 @@
 
     <form id="composer-form">
       <label id="composer-picker" class="composer-picker">
-        <span id="composer-picker-text">Tap to choose a photo</span>
+        <span id="composer-picker-text">Tap to choose photos</span>
         <img id="composer-preview" class="composer-preview hidden" alt="" />
-        <input type="file" id="composer-file-input" accept="image/*" hidden />
+        <div id="composer-thumbs" class="composer-thumbs hidden"></div>
+        <input type="file" id="composer-file-input" accept="image/*" multiple hidden />
       </label>
 
       <div class="uploader-row">
@@ -91,8 +92,11 @@
         </select>
       </div>
 
-      <textarea id="composer-caption" placeholder="Add a caption or quote... (optional)" rows="2" maxlength="300"></textarea>
-      <input type="url" id="composer-song" placeholder="Spotify or YouTube link (optional)" />
+      <div id="composer-caption-fields" class="composer-caption-fields">
+        <textarea id="composer-caption" placeholder="Add a caption or quote... (optional)" rows="2" maxlength="300"></textarea>
+        <input type="url" id="composer-song" placeholder="Spotify or YouTube link (optional)" />
+      </div>
+      <p id="composer-multi-hint" class="composer-hint hidden">You can add a caption &amp; song to each photo afterwards, from its full view.</p>
 
       <div class="composer-progress hidden" id="composer-progress">
         <div class="spinner"></div>
