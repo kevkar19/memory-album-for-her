@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+<title>For her: Shaqeelah</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%92%97</text></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- Password gate -->
+<div id="gate-overlay">
+  <div class="gate-box">
+    <div class="gate-heart">💗</div>
+    <h1>For her: Shaqeelah</h1>
+    <p class="gate-subtitle">This little corner of the internet is just for us.</p>
+    <form id="gate-form" autocomplete="off">
+      <input type="password" id="gate-input" placeholder="Enter the passcode" autocomplete="off" required />
+      <button type="submit">Unlock</button>
+      <p id="gate-error" class="gate-error"></p>
+    </form>
+  </div>
+</div>
+
+<!-- Main app -->
+<div id="app" class="hidden">
+  <header class="app-header">
+    <h1>For her: Shaqeelah</h1>
+    <p class="app-subtitle">every photo, every song, every little thing 💗</p>
+  </header>
+
+  <main>
+    <section id="gallery" class="view active">
+      <div class="view-header">
+        <h2>Gallery</h2>
+        <label class="upload-btn">
+          + Add Photos
+          <input type="file" id="photo-input" accept="image/*" multiple hidden />
+        </label>
+      </div>
+      <div class="uploader-row">
+        <label for="uploader-select">Uploading as</label>
+        <select id="uploader-select">
+          <option value="Shaqeelah">Shaqeelah</option>
+          <option value="Me">Me</option>
+        </select>
+      </div>
+      <p id="gallery-empty" class="empty-state hidden">No photos yet — add the first one 📸</p>
+      <div id="gallery-grid" class="gallery-grid"></div>
+    </section>
+
+    <section id="quotes" class="view">
+      <div class="view-header">
+        <h2>Quotes</h2>
+      </div>
+      <form id="quote-form" class="inline-form">
+        <textarea id="quote-text-input" placeholder="Write a quote..." required rows="2"></textarea>
+        <input type="text" id="quote-author-input" placeholder="Attribution (optional)" />
+        <button type="submit">Add Quote</button>
+      </form>
+      <p id="quotes-empty" class="empty-state hidden">No quotes yet.</p>
+      <div id="quotes-list" class="quotes-list"></div>
+    </section>
+
+    <section id="songs" class="view">
+      <div class="view-header">
+        <h2>Our Songs</h2>
+      </div>
+      <form id="song-form" class="inline-form">
+        <input type="text" id="song-title-input" placeholder="Song title" required />
+        <input type="text" id="song-artist-input" placeholder="Artist (optional)" />
+        <input type="url" id="song-url-input" placeholder="Spotify or YouTube link" required />
+        <button type="submit">Add Song</button>
+      </form>
+      <p id="songs-empty" class="empty-state hidden">No songs yet.</p>
+      <div id="songs-list" class="songs-list"></div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-target="gallery"><span class="nav-icon">📸</span><span>Gallery</span></button>
+    <button class="nav-btn" data-target="quotes"><span class="nav-icon">💌</span><span>Quotes</span></button>
+    <button class="nav-btn" data-target="songs"><span class="nav-icon">🎵</span><span>Songs</span></button>
+  </nav>
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox" class="lightbox">
+  <img id="lightbox-img" src="" alt="" />
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
