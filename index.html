@@ -94,10 +94,11 @@
       </div>
 
       <div id="composer-caption-fields" class="composer-caption-fields">
-        <textarea id="composer-caption" placeholder="Add a caption or quote... (optional)" rows="2" maxlength="300"></textarea>
+        <input type="text" id="composer-caption" placeholder="Add a title... (optional)" maxlength="120" />
+        <textarea id="composer-subcaption" placeholder="Add a quote or caption... (optional)" rows="2" maxlength="300"></textarea>
         <input type="url" id="composer-song" placeholder="Spotify or YouTube link (optional)" />
       </div>
-      <p id="composer-multi-hint" class="composer-hint hidden">You can add a caption &amp; song to each photo afterwards, from its full view.</p>
+      <p id="composer-multi-hint" class="composer-hint hidden">You can add a title, quote &amp; song to each photo afterwards, from its full view.</p>
 
       <div class="composer-progress hidden" id="composer-progress">
         <div class="spinner"></div>
@@ -117,8 +118,9 @@
     <img id="lightbox-img" src="" alt="" />
     <div class="lightbox-overlay">
       <p id="lightbox-caption" class="lightbox-caption"></p>
+      <p id="lightbox-subcaption" class="lightbox-subcaption"></p>
       <div id="lightbox-song" class="lightbox-song"></div>
-      <button type="button" id="lightbox-edit" class="lightbox-edit">✎ Edit caption &amp; song</button>
+      <button type="button" id="lightbox-edit" class="lightbox-edit">✎ Edit title, quote &amp; song</button>
     </div>
   </div>
 </div>

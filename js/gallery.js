@@ -100,6 +100,7 @@ function resetComposer() {
   document.getElementById("composer-picker-text").classList.remove("hidden");
   document.getElementById("composer-picker-text").textContent = "Tap to choose photos";
   document.getElementById("composer-caption").value = "";
+  document.getElementById("composer-subcaption").value = "";
   document.getElementById("composer-song").value = "";
   document.getElementById("composer-caption-fields").classList.remove("hidden");
   document.getElementById("composer-multi-hint").classList.add("hidden");
@@ -162,6 +163,7 @@ function openComposerForEdit(id, data) {
   document.getElementById("composer-picker-text").classList.add("hidden");
 
   document.getElementById("composer-caption").value = data.caption || "";
+  document.getElementById("composer-subcaption").value = data.subcaption || "";
   document.getElementById("composer-song").value = data.songUrl || "";
   document.getElementById("composer-submit").textContent = "Save";
   document.getElementById("composer-overlay").classList.remove("hidden");
@@ -176,11 +178,13 @@ async function handleComposerSubmit(e) {
   const errorEl = document.getElementById("composer-error");
   const submitBtn = document.getElementById("composer-submit");
   const captionInput = document.getElementById("composer-caption");
+  const subcaptionInput = document.getElementById("composer-subcaption");
   const songInput = document.getElementById("composer-song");
   errorEl.textContent = "";
 
   const isMulti = !editingId && selectedFiles.length > 1;
   const caption = isMulti ? "" : captionInput.value.trim();
+  const subcaption = isMulti ? "" : subcaptionInput.value.trim();
   const songUrl = isMulti ? "" : songInput.value.trim();
 
   if (songUrl && !parseMusicUrl(songUrl)) {
@@ -194,6 +198,7 @@ async function handleComposerSubmit(e) {
     try {
       await updateDoc(doc(db, "photos", editingId), {
         caption: caption || null,
+        subcaption: subcaption || null,
         songUrl: songUrl || null,
       });
       closeComposer();
@@ -236,6 +241,7 @@ async function handleComposerSubmit(e) {
         height: result.height || null,
         uploadedBy: uploader,
         caption: caption || null,
+        subcaption: subcaption || null,
         songUrl: songUrl || null,
         createdAt: serverTimestamp(),
       });
@@ -270,14 +276,18 @@ function renderPhoto(docSnap) {
   const item = document.createElement("div");
   item.className = "gallery-item";
 
+  const textHtml = data.caption
+    ? `<p class="gallery-title">${escapeHtml(data.caption)}</p>${
+        data.subcaption ? `<p class="gallery-subcaption">${escapeHtml(data.subcaption)}</p>` : ""
+      }`
+    : `<p class="gallery-meta">by ${escapeHtml(data.uploadedBy || "someone")}</p>`;
+
   item.innerHTML = `
     <div class="gallery-img-wrap">
       <img src="${data.url}" alt="A shared memory" loading="lazy" />
       ${data.songUrl ? '<span class="song-badge">🎵</span>' : ""}
     </div>
-    <div class="gallery-caption">${
-      data.caption ? escapeHtml(data.caption) : `by ${escapeHtml(data.uploadedBy || "someone")}`
-    }</div>
+    <div class="gallery-caption">${textHtml}</div>
   `;
 
   const img = item.querySelector("img");
@@ -295,6 +305,10 @@ function openLightbox(id, data) {
   const captionEl = document.getElementById("lightbox-caption");
   captionEl.textContent = data.caption || "";
   captionEl.classList.toggle("hidden", !data.caption);
+
+  const subcaptionEl = document.getElementById("lightbox-subcaption");
+  subcaptionEl.textContent = data.subcaption || "";
+  subcaptionEl.classList.toggle("hidden", !data.subcaption);
 
   const songEl = document.getElementById("lightbox-song");
   songEl.innerHTML = data.songUrl ? songEmbedHtml(data.songUrl) : "";

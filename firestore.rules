@@ -27,24 +27,29 @@ service cloud.firestore {
       allow read: if true;
 
       // Creating a photo: only via the app's upload flow, so the image
-      // itself always comes from our Cloudinary account.
+      // itself always comes from our Cloudinary account. `caption` is the
+      // photo's title, `subcaption` is the smaller quote/caption under it.
       allow create: if request.resource.data.keys().hasOnly(
-                        ['url', 'publicId', 'width', 'height', 'uploadedBy', 'caption', 'songUrl', 'createdAt']
+                        ['url', 'publicId', 'width', 'height', 'uploadedBy', 'caption', 'subcaption', 'songUrl', 'createdAt']
                       )
                       && request.resource.data.url is string
                       && request.resource.data.url.matches('^https://res[.]cloudinary[.]com/z0pt1gga/.*')
                       && request.resource.data.uploadedBy is string
                       && request.resource.data.uploadedBy.size() < 40
                       && (!('caption' in request.resource.data) || request.resource.data.caption == null
-                          || (request.resource.data.caption is string && request.resource.data.caption.size() < 300))
+                          || (request.resource.data.caption is string && request.resource.data.caption.size() < 120))
+                      && (!('subcaption' in request.resource.data) || request.resource.data.subcaption == null
+                          || (request.resource.data.subcaption is string && request.resource.data.subcaption.size() < 300))
                       && (!('songUrl' in request.resource.data) || request.resource.data.songUrl == null
                           || (request.resource.data.songUrl is string && isMusicUrl(request.resource.data.songUrl)));
 
-      // Editing a photo: only the caption/songUrl may change — the image,
-      // uploader, and timestamp are immutable once created.
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption', 'songUrl'])
+      // Editing a photo: only caption/subcaption/songUrl may change — the
+      // image, uploader, and timestamp are immutable once created.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption', 'subcaption', 'songUrl'])
                       && (!('caption' in request.resource.data) || request.resource.data.caption == null
-                          || (request.resource.data.caption is string && request.resource.data.caption.size() < 300))
+                          || (request.resource.data.caption is string && request.resource.data.caption.size() < 120))
+                      && (!('subcaption' in request.resource.data) || request.resource.data.subcaption == null
+                          || (request.resource.data.subcaption is string && request.resource.data.subcaption.size() < 300))
                       && (!('songUrl' in request.resource.data) || request.resource.data.songUrl == null
                           || (request.resource.data.songUrl is string && isMusicUrl(request.resource.data.songUrl)));
 

@@ -21,7 +21,6 @@
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--cream);
   color: var(--text);
   font-family: "Quicksand", -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-tap-highlight-color: transparent;
@@ -31,6 +30,12 @@ body {
   position: relative;
   overflow-x: hidden;
   min-height: 100vh;
+  background:
+    radial-gradient(rgba(178, 76, 99, 0.05) 1px, transparent 1px) 0 0/22px 22px,
+    radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.5), transparent 45%),
+    radial-gradient(circle at 82% 10%, rgba(247, 201, 206, 0.5), transparent 50%),
+    linear-gradient(160deg, var(--blush) 0%, var(--cream) 55%, var(--cream-deep) 100%);
+  background-attachment: fixed;
 }
 
 body::before,
@@ -465,14 +470,38 @@ main {
 }
 
 .gallery-caption {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-soft);
   padding: 8px 12px 12px;
+}
+
+.gallery-title {
+  font-family: "Playfair Display", Georgia, serif;
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--text);
+  margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.gallery-subcaption {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  font-size: 12.5px;
+  color: var(--text-soft);
+  margin: 3px 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.gallery-meta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-soft);
+  margin: 0;
 }
 
 .spinner {
@@ -673,6 +702,7 @@ main {
 }
 
 #composer-caption,
+#composer-subcaption,
 #composer-song {
   padding: 11px 13px;
   border-radius: 11px;
@@ -686,6 +716,7 @@ main {
 }
 
 #composer-caption:focus,
+#composer-subcaption:focus,
 #composer-song:focus {
   outline: none;
   border-color: var(--rose);
@@ -772,10 +803,20 @@ main {
 .lightbox-caption {
   color: var(--white);
   font-family: "Playfair Display", Georgia, serif;
-  font-style: italic;
-  font-size: 15.5px;
-  line-height: 1.5;
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.4;
   margin: 0;
+  padding: 0 6px;
+}
+
+.lightbox-subcaption {
+  color: rgba(255, 255, 255, 0.82);
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.5;
+  margin: -6px 0 0;
   padding: 0 6px;
 }
 
