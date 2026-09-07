@@ -3,6 +3,11 @@ rules_version = '2';
 // Paste this into Firebase Console → Firestore Database → Rules, replacing
 // the test-mode rules, before sharing the site's URL with anyone.
 //
+// Note: uses .matches() instead of .startsWith() for prefix checks —
+// .startsWith() silently failed (denied every request) on this project's
+// rules environment for reasons never fully diagnosed; .matches() with an
+// escaped-dot regex is the fallback that reliably works.
+//
 // This app has no login system (just a client-side PIN gate on the front
 // end), so these rules cannot tell "us" apart from a stranger who found the
 // URL — they only constrain the *shape* of writes so a bot or scraper can't
@@ -13,9 +18,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function isMusicUrl(url) {
-      return url.startsWith('https://open.spotify.com/')
-        || url.startsWith('https://www.youtube.com/')
-        || url.startsWith('https://youtu.be/');
+      return url.matches('^https://open[.]spotify[.]com/.*')
+        || url.matches('^https://www[.]youtube[.]com/.*')
+        || url.matches('^https://youtu[.]be/.*');
     }
 
     match /photos/{photoId} {
@@ -27,7 +32,7 @@ service cloud.firestore {
                         ['url', 'publicId', 'width', 'height', 'uploadedBy', 'caption', 'songUrl', 'createdAt']
                       )
                       && request.resource.data.url is string
-                      && request.resource.data.url.startsWith('https://res.cloudinary.com/z0pt1gga/')
+                      && request.resource.data.url.matches('^https://res[.]cloudinary[.]com/z0pt1gga/.*')
                       && request.resource.data.uploadedBy is string
                       && request.resource.data.uploadedBy.size() < 40
                       && (!('caption' in request.resource.data) || request.resource.data.caption == null
