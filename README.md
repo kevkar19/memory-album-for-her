@@ -1,30 +1,42 @@
 # For her: Shaqeelah 💗
 
-A private, shared memory album — photo gallery, quotes, and favourite songs —
-built as a static site for free hosting on GitHub Pages.
+A private, shared memory album — a photo gallery where each photo can carry
+its own caption/quote and a linked song — built as a static site for free
+hosting on GitHub Pages.
 
 ## Stack
 
 - Vanilla HTML/CSS/JS (ES modules, no build step)
 - [Cloudinary](https://cloudinary.com) unsigned uploads for photo hosting
 - [Firebase Firestore](https://firebase.google.com/docs/firestore) for photo
-  metadata, quotes, and song links
+  metadata (uploader, caption, song link)
 
 ## Project structure
 
 ```
-index.html            Single-page app: gate + gallery/quotes/songs views
-css/style.css          All styling
-js/firebase-init.js    Firebase app + Firestore init
-js/cloudinary-config.js Cloudinary cloud name / upload preset
-js/gate.js              Client-side PIN gate
-js/gallery.js           Photo upload (Cloudinary) + live gallery (Firestore)
-js/quotes.js            Quotes list + add-quote form (Firestore)
-js/songs.js             Songs list + add-song form (Firestore)
-js/utils.js             Shared helpers
-js/app.js               Bootstraps everything + bottom-nav tab switching
-firestore.rules         Security rules to paste into the Firebase console
+index.html              Single-page app: cover/gate + gallery + composer + lightbox
+css/style.css            All styling
+js/firebase-init.js      Firebase app + Firestore init
+js/cloudinary-config.js  Cloudinary cloud name / upload preset
+js/gate.js               Client-side PIN gate
+js/gallery.js            Upload/edit composer + live gallery + lightbox (Firestore + Cloudinary)
+js/utils.js              Shared helpers
+js/app.js                Bootstraps the gate + gallery
+firestore.rules          Security rules to paste into the Firebase console
 ```
+
+## How it works
+
+- Tap **+ Add Photo** to open the composer: pick a photo, optionally add a
+  caption/quote and a Spotify/YouTube link for a song, then Share. The photo
+  uploads to Cloudinary and its metadata (URL, uploader, caption, song link)
+  is saved to the `photos` collection in Firestore — everyone viewing the
+  site sees it appear live.
+- Tap any photo to open it full-screen. If it has a caption, it's shown
+  below the photo; if it has a song, the player is embedded right there.
+- Inside the full-screen view, **Edit caption & song** lets either of you
+  add or change those two fields on an existing photo later — the photo
+  itself and who uploaded it can't be changed.
 
 ## Running locally
 
@@ -83,14 +95,16 @@ would silently break the app.
 3. Replace the existing rules with the contents of that file, then **Publish**.
 
 What those rules do:
-- Allow public **read** of photos/quotes/songs (needed for the gallery/pages
+- Allow public **read** of the `photos` collection (needed for the gallery
   to load with no login system).
-- Allow **create** only, never update/delete, and only when the new
-  document has just the expected fields, reasonable string lengths, and (for
-  photos/songs) a URL from Cloudinary/Spotify/YouTube. This stops a bot from
-  overwriting or wiping your data, and makes it harder to use your database
-  to store arbitrary junk.
-- Deny everything else by default.
+- Allow **create** only when the new document has just the expected fields,
+  a Cloudinary-hosted `url`, a reasonable-length `uploadedBy`, and — if
+  present — a `caption` under 300 characters and a `songUrl` starting with
+  a Spotify/YouTube prefix.
+- Allow **update** only when it touches `caption` and/or `songUrl` (same
+  validation as above) — the image, uploader, and timestamp can never be
+  changed after creation.
+- Deny delete, and deny everything else by default.
 
 **Important limitation:** there is no Firebase Auth in this app, so these
 rules can't distinguish "you and her" from a stranger who found the URL —

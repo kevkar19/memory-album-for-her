@@ -12,37 +12,38 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function isMusicUrl(url) {
+      return url.startsWith('https://open.spotify.com/')
+        || url.startsWith('https://www.youtube.com/')
+        || url.startsWith('https://youtu.be/');
+    }
+
     match /photos/{photoId} {
       allow read: if true;
+
+      // Creating a photo: only via the app's upload flow, so the image
+      // itself always comes from our Cloudinary account.
       allow create: if request.resource.data.keys().hasOnly(
-                        ['url', 'publicId', 'width', 'height', 'uploadedBy', 'createdAt']
+                        ['url', 'publicId', 'width', 'height', 'uploadedBy', 'caption', 'songUrl', 'createdAt']
                       )
                       && request.resource.data.url is string
                       && request.resource.data.url.startsWith('https://res.cloudinary.com/z0pt1gga/')
                       && request.resource.data.uploadedBy is string
-                      && request.resource.data.uploadedBy.size() < 40;
-      allow update, delete: if false;
-    }
+                      && request.resource.data.uploadedBy.size() < 40
+                      && (!('caption' in request.resource.data) || request.resource.data.caption == null
+                          || (request.resource.data.caption is string && request.resource.data.caption.size() < 300))
+                      && (!('songUrl' in request.resource.data) || request.resource.data.songUrl == null
+                          || (request.resource.data.songUrl is string && isMusicUrl(request.resource.data.songUrl)));
 
-    match /quotes/{quoteId} {
-      allow read: if true;
-      allow create: if request.resource.data.keys().hasOnly(['text', 'author', 'createdAt'])
-                      && request.resource.data.text is string
-                      && request.resource.data.text.size() > 0
-                      && request.resource.data.text.size() < 500;
-      allow update, delete: if false;
-    }
+      // Editing a photo: only the caption/songUrl may change — the image,
+      // uploader, and timestamp are immutable once created.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption', 'songUrl'])
+                      && (!('caption' in request.resource.data) || request.resource.data.caption == null
+                          || (request.resource.data.caption is string && request.resource.data.caption.size() < 300))
+                      && (!('songUrl' in request.resource.data) || request.resource.data.songUrl == null
+                          || (request.resource.data.songUrl is string && isMusicUrl(request.resource.data.songUrl)));
 
-    match /songs/{songId} {
-      allow read: if true;
-      allow create: if request.resource.data.keys().hasOnly(['title', 'artist', 'url', 'createdAt'])
-                      && request.resource.data.title is string
-                      && request.resource.data.title.size() < 200
-                      && request.resource.data.url is string
-                      && (request.resource.data.url.startsWith('https://open.spotify.com/')
-                          || request.resource.data.url.startsWith('https://www.youtube.com/')
-                          || request.resource.data.url.startsWith('https://youtu.be/'));
-      allow update, delete: if false;
+      allow delete: if false;
     }
 
     // Deny everything else by default.

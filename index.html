@@ -7,41 +7,78 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%92%97</text></svg>" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Cormorant+Garamond:ital,wght@0,500;1,500&family=Dancing+Script:wght@600&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
 
-<!-- Password gate -->
+<!-- Cover / password gate -->
 <div id="gate-overlay">
-  <div class="gate-box">
-    <div class="gate-heart">💗</div>
-    <h1>For her: Shaqeelah</h1>
-    <p class="gate-subtitle">This little corner of the internet is just for us.</p>
-    <form id="gate-form" autocomplete="off">
-      <input type="password" id="gate-input" placeholder="Enter the passcode" autocomplete="off" required />
-      <button type="submit">Unlock</button>
-      <p id="gate-error" class="gate-error"></p>
+  <div class="gate-content">
+    <svg class="gate-ornament" width="120" height="26" viewBox="0 0 120 26" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M2 13 C 32 1, 88 1, 118 13" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+      <circle cx="60" cy="13" r="2.5" fill="currentColor"/>
+    </svg>
+
+    <p class="gate-eyebrow">a memory album for</p>
+    <h1 class="gate-title">Shaqeelah</h1>
+    <p class="gate-script">with all my heart</p>
+    <p class="gate-subtitle">every photo, every song, every little thing</p>
+
+    <svg class="gate-ornament gate-ornament-flip" width="120" height="26" viewBox="0 0 120 26" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M2 13 C 32 1, 88 1, 118 13" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+      <circle cx="60" cy="13" r="2.5" fill="currentColor"/>
+    </svg>
+
+    <form id="gate-form" class="gate-form" autocomplete="off">
+      <input type="password" id="gate-input" placeholder="passcode" autocomplete="off" required />
+      <button type="submit" aria-label="Open the album">Open</button>
     </form>
+    <p id="gate-error" class="gate-error"></p>
   </div>
 </div>
 
 <!-- Main app -->
 <div id="app" class="hidden">
   <header class="app-header">
-    <h1>For her: Shaqeelah</h1>
-    <p class="app-subtitle">every photo, every song, every little thing 💗</p>
+    <div class="header-badge">💗</div>
+    <p class="eyebrow">a little world of us</p>
+    <h1>Shaqeelah</h1>
+    <p class="app-subtitle">every photo, every song, every little thing</p>
   </header>
 
   <main>
-    <section id="gallery" class="view active">
-      <div class="view-header">
-        <h2>Gallery</h2>
-        <label class="upload-btn">
-          + Add Photos
-          <input type="file" id="photo-input" accept="image/*" multiple hidden />
-        </label>
-      </div>
+    <div class="toolbar">
+      <button type="button" id="add-photo-btn" class="upload-btn">
+        <span class="upload-btn-icon">+</span> Add Photo
+      </button>
+    </div>
+
+    <div id="gallery-empty" class="empty-state hidden">
+      <div class="empty-icon">📷</div>
+      <p class="empty-title">No photos yet</p>
+      <p class="empty-subtitle">Add the first one to start the story</p>
+    </div>
+
+    <div id="gallery-grid" class="gallery-grid"></div>
+  </main>
+</div>
+
+<!-- Photo composer (add / edit) -->
+<div id="composer-overlay" class="composer-overlay hidden">
+  <div id="composer-box" class="composer-box">
+    <div class="composer-header">
+      <h3 id="composer-title">Add a photo</h3>
+      <button type="button" id="composer-close" class="icon-btn" aria-label="Close">&times;</button>
+    </div>
+
+    <form id="composer-form">
+      <label id="composer-picker" class="composer-picker">
+        <span id="composer-picker-text">Tap to choose a photo</span>
+        <img id="composer-preview" class="composer-preview hidden" alt="" />
+        <input type="file" id="composer-file-input" accept="image/*" hidden />
+      </label>
+
       <div class="uploader-row">
         <label for="uploader-select">Uploading as</label>
         <select id="uploader-select">
@@ -49,48 +86,32 @@
           <option value="Me">Me</option>
         </select>
       </div>
-      <p id="gallery-empty" class="empty-state hidden">No photos yet — add the first one 📸</p>
-      <div id="gallery-grid" class="gallery-grid"></div>
-    </section>
 
-    <section id="quotes" class="view">
-      <div class="view-header">
-        <h2>Quotes</h2>
+      <textarea id="composer-caption" placeholder="Add a caption or quote... (optional)" rows="2" maxlength="300"></textarea>
+      <input type="url" id="composer-song" placeholder="Spotify or YouTube link (optional)" />
+
+      <div class="composer-progress hidden" id="composer-progress">
+        <div class="spinner"></div>
+        <span id="composer-progress-text">Uploading... 0%</span>
       </div>
-      <form id="quote-form" class="inline-form">
-        <textarea id="quote-text-input" placeholder="Write a quote..." required rows="2"></textarea>
-        <input type="text" id="quote-author-input" placeholder="Attribution (optional)" />
-        <button type="submit">Add Quote</button>
-      </form>
-      <p id="quotes-empty" class="empty-state hidden">No quotes yet.</p>
-      <div id="quotes-list" class="quotes-list"></div>
-    </section>
 
-    <section id="songs" class="view">
-      <div class="view-header">
-        <h2>Our Songs</h2>
-      </div>
-      <form id="song-form" class="inline-form">
-        <input type="text" id="song-title-input" placeholder="Song title" required />
-        <input type="text" id="song-artist-input" placeholder="Artist (optional)" />
-        <input type="url" id="song-url-input" placeholder="Spotify or YouTube link" required />
-        <button type="submit">Add Song</button>
-      </form>
-      <p id="songs-empty" class="empty-state hidden">No songs yet.</p>
-      <div id="songs-list" class="songs-list"></div>
-    </section>
-  </main>
-
-  <nav class="bottom-nav">
-    <button class="nav-btn active" data-target="gallery"><span class="nav-icon">📸</span><span>Gallery</span></button>
-    <button class="nav-btn" data-target="quotes"><span class="nav-icon">💌</span><span>Quotes</span></button>
-    <button class="nav-btn" data-target="songs"><span class="nav-icon">🎵</span><span>Songs</span></button>
-  </nav>
+      <p id="composer-error" class="gate-error"></p>
+      <button type="submit" id="composer-submit">Share</button>
+    </form>
+  </div>
 </div>
 
 <!-- Lightbox -->
 <div id="lightbox" class="lightbox">
-  <img id="lightbox-img" src="" alt="" />
+  <button type="button" id="lightbox-close" class="icon-btn lightbox-close" aria-label="Close">&times;</button>
+  <div class="lightbox-content">
+    <img id="lightbox-img" src="" alt="" />
+    <div class="lightbox-overlay">
+      <p id="lightbox-caption" class="lightbox-caption"></p>
+      <div id="lightbox-song" class="lightbox-song"></div>
+      <button type="button" id="lightbox-edit" class="lightbox-edit">✎ Edit caption &amp; song</button>
+    </div>
+  </div>
 </div>
 
 <script type="module" src="js/app.js"></script>
