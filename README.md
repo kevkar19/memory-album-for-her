@@ -104,7 +104,10 @@ What those rules do:
 - Allow **update** only when it touches `caption` and/or `songUrl` (same
   validation as above) — the image, uploader, and timestamp can never be
   changed after creation.
-- Deny delete, and deny everything else by default.
+- Allow **delete** unconditionally, so either of you can remove a photo
+  from the app (note: this also means anyone with the site URL could
+  delete photos — see the limitation below).
+- Deny everything else by default.
 
 **Important limitation:** there is no Firebase Auth in this app, so these
 rules can't distinguish "you and her" from a stranger who found the URL —

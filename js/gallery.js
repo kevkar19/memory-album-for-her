@@ -3,6 +3,7 @@ import {
   collection,
   addDoc,
   updateDoc,
+  deleteDoc,
   doc,
   onSnapshot,
   orderBy,
@@ -383,6 +384,10 @@ function openLightboxAt(index) {
 
   updateLightboxFavButton(data.favorite);
 
+  const deleteBtn = document.getElementById("lightbox-delete");
+  deleteBtn.disabled = false;
+  deleteBtn.textContent = "Delete this photo";
+
   document.getElementById("lightbox").classList.add("active");
 }
 
@@ -504,6 +509,25 @@ export function initGallery() {
     const data = currentLightboxData;
     closeLightbox();
     openComposerForEdit(id, data);
+  });
+  document.getElementById("lightbox-delete").addEventListener("click", async () => {
+    if (!currentLightboxId) return;
+    const confirmed = window.confirm("Delete this photo? This can't be undone.");
+    if (!confirmed) return;
+
+    const id = currentLightboxId;
+    const btn = document.getElementById("lightbox-delete");
+    btn.disabled = true;
+    btn.textContent = "Deleting...";
+    try {
+      await deleteDoc(doc(db, "photos", id));
+      closeLightbox();
+    } catch (err) {
+      console.error("Couldn't delete photo:", err);
+      btn.disabled = false;
+      btn.textContent = "Delete this photo";
+      window.alert("Couldn't delete — try again?");
+    }
   });
   document.getElementById("lightbox-fav").addEventListener("click", async () => {
     if (!currentLightboxId) return;

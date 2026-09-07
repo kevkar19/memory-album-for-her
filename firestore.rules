@@ -10,9 +10,11 @@ rules_version = '2';
 //
 // This app has no login system (just a client-side PIN gate on the front
 // end), so these rules cannot tell "us" apart from a stranger who found the
-// URL — they only constrain the *shape* of writes so a bot or scraper can't
-// trash the database. See README.md for how to raise the bar further with
-// Firebase App Check.
+// URL — they only constrain the *shape* of creates/edits so a bot or
+// scraper can't fill the database with junk. Deletes are intentionally
+// left open (see below) so either of you can remove a photo from the app,
+// which also means a stranger who found the URL could delete photos too.
+// See README.md for how to raise the bar further with Firebase App Check.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -55,7 +57,11 @@ service cloud.firestore {
                           || (request.resource.data.songUrl is string && isMusicUrl(request.resource.data.songUrl)))
                       && (!('favorite' in request.resource.data) || request.resource.data.favorite is bool);
 
-      allow delete: if false;
+      // Deleting a photo: open, by request — this app has no real auth, so
+      // this also means anyone with the site URL could delete photos, not
+      // just the two of you. Acceptable trade-off behind the PIN gate for
+      // a small shared album; revisit with Firebase Auth if that changes.
+      allow delete: if true;
     }
 
     // Deny everything else by default.

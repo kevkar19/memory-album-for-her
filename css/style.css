@@ -969,6 +969,22 @@ main {
   }
 }
 
+.lightbox-delete-link {
+  background: none;
+  border: none;
+  color: rgba(255, 200, 200, 0.75);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  padding: 4px;
+}
+
+@media (hover: hover) {
+  .lightbox-delete-link:hover {
+    color: #ffb3b3;
+  }
+}
+
 .lightbox-close {
   position: fixed;
   top: 18px;
