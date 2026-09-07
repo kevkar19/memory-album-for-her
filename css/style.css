@@ -474,10 +474,10 @@ main {
 }
 
 .gallery-title {
-  font-family: "Playfair Display", Georgia, serif;
-  font-weight: 700;
-  font-size: 13.5px;
-  color: var(--text);
+  font-family: "Quicksand", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-soft);
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
