@@ -31,17 +31,29 @@ export function initGate() {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const hash = await sha256(input.value.trim());
+    error.textContent = "";
 
-    if (hash === PIN_HASH) {
-      localStorage.setItem(STORAGE_KEY, "true");
-      showApp();
-    } else {
-      error.textContent = "That's not it — try again 💗";
-      input.value = "";
-      input.focus();
-      form.classList.add("shake");
-      setTimeout(() => form.classList.remove("shake"), 400);
+    try {
+      if (!window.crypto?.subtle) {
+        error.textContent = "This browser can't open the album — try Chrome or Safari.";
+        return;
+      }
+
+      const hash = await sha256(input.value.trim());
+
+      if (hash === PIN_HASH) {
+        localStorage.setItem(STORAGE_KEY, "true");
+        showApp();
+      } else {
+        error.textContent = "That's not it — try again 💗";
+        input.value = "";
+        input.focus();
+        form.classList.add("shake");
+        setTimeout(() => form.classList.remove("shake"), 400);
+      }
+    } catch (err) {
+      console.error("Gate error:", err);
+      error.textContent = "Something went wrong — try reloading the page.";
     }
   });
 }
