@@ -99,9 +99,28 @@
       <div id="composer-caption-fields" class="composer-caption-fields">
         <input type="text" id="composer-caption" placeholder="Add a title... (optional)" maxlength="120" />
         <textarea id="composer-subcaption" placeholder="Add a quote or caption... (optional)" rows="2" maxlength="300"></textarea>
-        <input type="url" id="composer-song" placeholder="Spotify or YouTube link (optional)" />
-        <input type="text" id="composer-song-start" placeholder="Best part starts at (mm:ss, optional)" />
-        <p class="composer-field-hint">YouTube links loop a 20-second clip from that point; Spotify just plays normally.</p>
+
+        <div class="song-section">
+          <label class="composer-field-label">Song (optional)</label>
+          <div class="song-select-row">
+            <select id="composer-song-select">
+              <option value="">No song</option>
+            </select>
+            <button type="button" id="composer-song-upload-btn" class="song-upload-btn">+ New</button>
+            <input type="file" id="composer-song-file-input" accept="audio/*" hidden />
+          </div>
+          <p id="composer-song-upload-status" class="composer-field-hint hidden"></p>
+
+          <div id="composer-clip-picker" class="clip-picker hidden">
+            <div class="clip-picker-header">
+              <button type="button" id="clip-preview-btn" class="clip-preview-btn" aria-label="Preview clip">▶</button>
+              <span id="clip-time-label" class="clip-time-label">0:00 – 0:20</span>
+            </div>
+            <input type="range" id="clip-start-slider" min="0" max="0" step="1" value="0" />
+            <p class="composer-field-hint">Drag to pick the best 20 seconds — it loops there every time this photo opens.</p>
+          </div>
+          <audio id="composer-preview-audio" preload="none"></audio>
+        </div>
       </div>
       <p id="composer-multi-hint" class="composer-hint hidden">You can add a title, quote &amp; song to each photo afterwards, from its full view.</p>
 
@@ -127,11 +146,17 @@
     <div class="lightbox-overlay">
       <p id="lightbox-caption" class="lightbox-caption"></p>
       <p id="lightbox-subcaption" class="lightbox-subcaption"></p>
-      <div id="lightbox-song" class="lightbox-song"></div>
+      <div id="lightbox-song" class="lightbox-song hidden">
+        <button type="button" id="lightbox-song-toggle" class="lightbox-song-toggle" aria-label="Play or pause song">
+          <span id="lightbox-song-icon">▶</span>
+        </button>
+        <span id="lightbox-song-name" class="lightbox-song-name"></span>
+      </div>
       <button type="button" id="lightbox-edit" class="lightbox-edit">✎ Edit title, quote &amp; song</button>
       <button type="button" id="lightbox-delete" class="lightbox-delete-link">Delete this photo</button>
     </div>
   </div>
+  <audio id="lightbox-audio" preload="none"></audio>
 </div>
 
 <script type="module" src="js/app.js"></script>

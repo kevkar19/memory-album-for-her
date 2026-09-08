@@ -11,19 +11,14 @@ rules_version = '2';
 // This app has no login system (just a client-side PIN gate on the front
 // end), so these rules cannot tell "us" apart from a stranger who found the
 // URL — they only constrain the *shape* of creates/edits so a bot or
-// scraper can't fill the database with junk. Deletes are intentionally
-// left open (see below) so either of you can remove a photo from the app,
-// which also means a stranger who found the URL could delete photos too.
-// See README.md for how to raise the bar further with Firebase App Check.
+// scraper can't fill the database with junk. Photo deletes are
+// intentionally left open (see below) so either of you can remove a photo
+// from the app, which also means a stranger who found the URL could delete
+// photos too. See README.md for how to raise the bar further with
+// Firebase App Check.
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isMusicUrl(url) {
-      return url.matches('^https://open[.]spotify[.]com/.*')
-        || url.matches('^https://www[.]youtube[.]com/.*')
-        || url.matches('^https://youtu[.]be/.*');
-    }
 
     match /photos/{photoId} {
       allow read: if true;
@@ -31,9 +26,10 @@ service cloud.firestore {
       // Creating a photo: only via the app's upload flow, so the image
       // itself always comes from our Cloudinary account. `caption` is the
       // photo's title, `subcaption` is the smaller quote/caption under it,
-      // `songStart` is the second offset for the 20-second YouTube loop.
+      // `songId` points at a document in the songs library, `songStart` is
+      // the second offset for the 20-second clip loop.
       allow create: if request.resource.data.keys().hasOnly(
-                        ['url', 'publicId', 'width', 'height', 'uploadedBy', 'caption', 'subcaption', 'songUrl', 'songStart', 'createdAt']
+                        ['url', 'publicId', 'width', 'height', 'uploadedBy', 'caption', 'subcaption', 'songId', 'songStart', 'createdAt']
                       )
                       && request.resource.data.url is string
                       && request.resource.data.url.matches('^https://res[.]cloudinary[.]com/z0pt1gga/.*')
@@ -43,22 +39,24 @@ service cloud.firestore {
                           || (request.resource.data.caption is string && request.resource.data.caption.size() < 120))
                       && (!('subcaption' in request.resource.data) || request.resource.data.subcaption == null
                           || (request.resource.data.subcaption is string && request.resource.data.subcaption.size() < 300))
-                      && (!('songUrl' in request.resource.data) || request.resource.data.songUrl == null
-                          || (request.resource.data.songUrl is string && isMusicUrl(request.resource.data.songUrl)))
+                      && (!('songId' in request.resource.data) || request.resource.data.songId == null
+                          || (request.resource.data.songId is string
+                              && exists(/databases/$(database)/documents/songs/$(request.resource.data.songId))))
                       && (!('songStart' in request.resource.data) || request.resource.data.songStart == null
                           || (request.resource.data.songStart is int && request.resource.data.songStart >= 0
                               && request.resource.data.songStart < 36000));
 
-      // Editing a photo: only caption/subcaption/songUrl/songStart/favorite
+      // Editing a photo: only caption/subcaption/songId/songStart/favorite
       // may change — the image, uploader, and timestamp are immutable once
       // created.
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption', 'subcaption', 'songUrl', 'songStart', 'favorite'])
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption', 'subcaption', 'songId', 'songStart', 'favorite'])
                       && (!('caption' in request.resource.data) || request.resource.data.caption == null
                           || (request.resource.data.caption is string && request.resource.data.caption.size() < 120))
                       && (!('subcaption' in request.resource.data) || request.resource.data.subcaption == null
                           || (request.resource.data.subcaption is string && request.resource.data.subcaption.size() < 300))
-                      && (!('songUrl' in request.resource.data) || request.resource.data.songUrl == null
-                          || (request.resource.data.songUrl is string && isMusicUrl(request.resource.data.songUrl)))
+                      && (!('songId' in request.resource.data) || request.resource.data.songId == null
+                          || (request.resource.data.songId is string
+                              && exists(/databases/$(database)/documents/songs/$(request.resource.data.songId))))
                       && (!('songStart' in request.resource.data) || request.resource.data.songStart == null
                           || (request.resource.data.songStart is int && request.resource.data.songStart >= 0
                               && request.resource.data.songStart < 36000))
@@ -68,6 +66,33 @@ service cloud.firestore {
       // this also means anyone with the site URL could delete photos, not
       // just the two of you. Acceptable trade-off behind the PIN gate for
       // a small shared album; revisit with Firebase Auth if that changes.
+      allow delete: if true;
+    }
+
+    // The shared song library — uploaded audio files photos can link to.
+    match /songs/{songId} {
+      allow read: if true;
+
+      allow create: if request.resource.data.keys().hasOnly(
+                        ['name', 'url', 'publicId', 'duration', 'uploadedBy', 'createdAt']
+                      )
+                      && request.resource.data.name is string
+                      && request.resource.data.name.size() > 0
+                      && request.resource.data.name.size() < 100
+                      && request.resource.data.url is string
+                      && request.resource.data.url.matches('^https://res[.]cloudinary[.]com/z0pt1gga/.*')
+                      && request.resource.data.uploadedBy is string
+                      && request.resource.data.uploadedBy.size() < 40
+                      && request.resource.data.duration is int
+                      && request.resource.data.duration >= 0;
+
+      // Not editable once uploaded (no rename yet), but deletable — same
+      // open-delete trade-off as photos above. No delete button exists in
+      // the UI yet; this just leaves the door open (e.g. via the Firebase
+      // console) without needing another rules republish later. Deleting a
+      // song a photo still references leaves that photo's song silently
+      // unavailable rather than erroring.
+      allow update: if false;
       allow delete: if true;
     }
 

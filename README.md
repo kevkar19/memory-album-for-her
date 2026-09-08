@@ -1,15 +1,16 @@
 # For her: Shaqeelah 💗
 
 A private, shared memory album — a photo gallery where each photo can carry
-its own caption/quote and a linked song — built as a static site for free
-hosting on GitHub Pages.
+its own caption/quote and a looping 20-second clip from a shared song
+library — built as a static site for free hosting on GitHub Pages.
 
 ## Stack
 
 - Vanilla HTML/CSS/JS (ES modules, no build step)
-- [Cloudinary](https://cloudinary.com) unsigned uploads for photo hosting
+- [Cloudinary](https://cloudinary.com) unsigned uploads for photo *and*
+  audio hosting
 - [Firebase Firestore](https://firebase.google.com/docs/firestore) for photo
-  metadata (uploader, caption, song link)
+  metadata and the shared song library
 
 ## Project structure
 
@@ -28,15 +29,24 @@ firestore.rules          Security rules to paste into the Firebase console
 ## How it works
 
 - Tap **+ Add Photo** to open the composer: pick a photo, optionally add a
-  caption/quote and a Spotify/YouTube link for a song, then Share. The photo
-  uploads to Cloudinary and its metadata (URL, uploader, caption, song link)
-  is saved to the `photos` collection in Firestore — everyone viewing the
-  site sees it appear live.
+  title/quote, and optionally attach a song. The photo uploads to Cloudinary
+  and its metadata is saved to the `photos` collection in Firestore —
+  everyone viewing the site sees it appear live.
+- **Songs** are their own shared library, stored in a `songs` collection.
+  In the composer's song picker, either choose an existing song or tap
+  **+ New** to upload an audio file (mp3, etc.) — it uploads to Cloudinary
+  (as a "video" resource, which is how Cloudinary handles audio) and gets
+  added to the library for both of you to reuse on any photo. Once a song
+  is picked, drag the slider to choose which 20 seconds of it play — there's
+  a preview button to listen before saving.
 - Tap any photo to open it full-screen. If it has a caption, it's shown
-  below the photo; if it has a song, the player is embedded right there.
-- Inside the full-screen view, **Edit caption & song** lets either of you
-  add or change those two fields on an existing photo later — the photo
-  itself and who uploaded it can't be changed.
+  below the photo; if it has a song, that 20-second clip attempts to play
+  on loop automatically (tap the play/pause pill if your browser blocked
+  autoplay — common on strict mobile browsers).
+- Inside the full-screen view, **Edit title, quote & song** lets either of
+  you change those fields on an existing photo later, including swapping to
+  a different song or re-picking the clip — the photo itself and who
+  uploaded it can't be changed.
 
 ## Running locally
 
@@ -95,18 +105,23 @@ would silently break the app.
 3. Replace the existing rules with the contents of that file, then **Publish**.
 
 What those rules do:
-- Allow public **read** of the `photos` collection (needed for the gallery
-  to load with no login system).
-- Allow **create** only when the new document has just the expected fields,
-  a Cloudinary-hosted `url`, a reasonable-length `uploadedBy`, and — if
-  present — a `caption` under 300 characters and a `songUrl` starting with
-  a Spotify/YouTube prefix.
-- Allow **update** only when it touches `caption` and/or `songUrl` (same
-  validation as above) — the image, uploader, and timestamp can never be
-  changed after creation.
-- Allow **delete** unconditionally, so either of you can remove a photo
-  from the app (note: this also means anyone with the site URL could
-  delete photos — see the limitation below).
+- Allow public **read** of the `photos` and `songs` collections (needed for
+  the gallery to load with no login system).
+- On `photos`, allow **create** only when the new document has just the
+  expected fields, a Cloudinary-hosted `url`, a reasonable-length
+  `uploadedBy`, and — if present — a `caption` under 120 characters, a
+  `subcaption` under 300, and a `songId` that actually points at a real
+  document in `songs`.
+- Allow **update** on `photos` only when it touches `caption`,
+  `subcaption`, `songId`, `songStart`, and/or `favorite` (same validation
+  as above) — the image, uploader, and timestamp can never be changed
+  after creation.
+- Allow **delete** on `photos` unconditionally, so either of you can remove
+  a photo from the app (note: this also means anyone with the site URL
+  could delete photos — see the limitation below).
+- On `songs`, allow **create** only with the expected fields and a
+  Cloudinary-hosted `url`; deny update/delete entirely (songs are
+  write-once — no in-app way to rename or remove one yet).
 - Deny everything else by default.
 
 **Important limitation:** there is no Firebase Auth in this app, so these
@@ -131,8 +146,12 @@ JS), so anyone who finds it could technically POST to your Cloudinary
 account. In the Cloudinary console, open **Settings → Upload → Upload
 presets → memory_album_for_her** and consider:
 
-- Restricting **allowed formats** to image types only (jpg, png, heic, webp).
-- Setting a **max file size** and **max image dimensions**.
+- Restricting **allowed formats** to the image and audio types you
+  actually use (e.g. jpg, png, heic, webp, mp3, m4a, wav) — the app
+  uploads photos to the `image` endpoint and songs to the `video`
+  endpoint (Cloudinary's audio handling), so don't lock formats down to
+  images only or song uploads will start failing.
+- Setting a **max file size** for each.
 - Turning on **eager transformations** or a moderation add-on if you're
   worried about abuse.
 - Watching your Cloudinary usage/credits occasionally, since the free tier

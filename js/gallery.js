@@ -10,11 +10,17 @@ import {
   query,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
-import { CLOUDINARY_UPLOAD_URL, CLOUDINARY_UPLOAD_PRESET } from "./cloudinary-config.js";
+import {
+  CLOUDINARY_UPLOAD_URL,
+  CLOUDINARY_AUDIO_UPLOAD_URL,
+  CLOUDINARY_UPLOAD_PRESET,
+} from "./cloudinary-config.js";
 import { escapeHtml } from "./utils.js";
 import { initZoom } from "./zoom.js";
 
 const photosCol = collection(db, "photos");
+const songsCol = collection(db, "songs");
+const CLIP_LENGTH_SECONDS = 20;
 
 let selectedFiles = [];
 let editingId = null; // null = add mode, otherwise the id of the photo being edited
@@ -27,14 +33,18 @@ let displayedList = []; // filtered subset actually shown (favorites or all)
 let currentIndex = -1; // index of the open lightbox photo within displayedList
 let showFavoritesOnly = false;
 
-function uploadToCloudinary(file, onProgress) {
+let songsList = []; // [{id, data}], the shared song library
+let composerSelectedSongId = "";
+let unwireLightboxLoop = null;
+
+function uploadToCloudinary(file, onProgress, uploadUrl = CLOUDINARY_UPLOAD_URL) {
   return new Promise((resolve, reject) => {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", CLOUDINARY_UPLOAD_URL);
+    xhr.open("POST", uploadUrl);
     xhr.upload.addEventListener("progress", (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     });
@@ -50,137 +60,163 @@ function uploadToCloudinary(file, onProgress) {
   });
 }
 
-const CLIP_LENGTH_SECONDS = 20;
-let ytApiPromise = null;
-let currentYtPlayer = null;
-
-// Loading the plain embed URL with start/end/loop params only loops the
-// WHOLE video from 0 after the first pass through the clip — verified this
-// empirically rather than trusting the commonly-cited trick. A real clip
-// loop needs the IFrame Player API: listen for ENDED and seek back to
-// `start` manually.
-function loadYouTubeApi() {
-  if (ytApiPromise) return ytApiPromise;
-  ytApiPromise = new Promise((resolve) => {
-    if (window.YT?.Player) {
-      resolve(window.YT);
-      return;
-    }
-    const previous = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-      previous?.();
-      resolve(window.YT);
-    };
-    const tag = document.createElement("script");
-    tag.src = "https://www.youtube.com/iframe_api";
-    document.head.appendChild(tag);
-  });
-  return ytApiPromise;
-}
-
-function destroyYtPlayer() {
-  if (currentYtPlayer) {
-    try {
-      currentYtPlayer.destroy();
-    } catch (e) {
-      // ignore — container may already be gone
-    }
-    currentYtPlayer = null;
-  }
-}
-
-async function mountYouTubeLoopPlayer(container, videoId, start) {
-  const YT = await loadYouTubeApi();
-  if (!document.body.contains(container)) return; // lightbox moved on while the API loaded
-
-  const targetId = `yt-loop-player-${Date.now()}`;
-  container.innerHTML = `<div class="yt-embed"><div id="${targetId}"></div></div>`;
-
-  currentYtPlayer = new YT.Player(targetId, {
-    width: "100%",
-    height: "100%",
-    videoId,
-    playerVars: {
-      start,
-      end: start + CLIP_LENGTH_SECONDS,
-      autoplay: 1,
-      playsinline: 1,
-    },
-    events: {
-      onStateChange: (e) => {
-        if (e.data === YT.PlayerState.ENDED) {
-          e.target.seekTo(start, true);
-          e.target.playVideo();
-        }
-      },
-    },
-  });
-}
-
-function parseMusicUrl(url) {
-  try {
-    const u = new URL(url);
-
-    if (u.hostname.includes("open.spotify.com")) {
-      const parts = u.pathname.split("/").filter(Boolean); // [type, id]
-      if (parts.length >= 2) {
-        const [type, id] = parts;
-        return { platform: "spotify", id, embedSrc: `https://open.spotify.com/embed/${type}/${id}` };
-      }
-    }
-
-    if (u.hostname.includes("youtube.com") && u.searchParams.get("v")) {
-      const id = u.searchParams.get("v");
-      return { platform: "youtube", id, embedSrc: `https://www.youtube.com/embed/${id}` };
-    }
-
-    if (u.hostname === "youtu.be") {
-      const id = u.pathname.slice(1);
-      return { platform: "youtube", id, embedSrc: `https://www.youtube.com/embed/${id}` };
-    }
-  } catch (e) {
-    return null;
-  }
-  return null;
-}
-
-function parseTimeToSeconds(input) {
-  const trimmed = (input || "").trim();
-  if (!trimmed) return null;
-  if (trimmed.includes(":")) {
-    const parts = trimmed.split(":").map((p) => parseInt(p, 10));
-    if (parts.some((p) => Number.isNaN(p))) return null;
-    return parts.reduce((acc, p) => acc * 60 + p, 0);
-  }
-  const n = parseInt(trimmed, 10);
-  return Number.isNaN(n) ? null : n;
-}
-
 function formatSecondsToTime(totalSeconds) {
-  if (!totalSeconds && totalSeconds !== 0) return "";
+  if (!totalSeconds && totalSeconds !== 0) return "0:00";
   const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
+  const s = Math.floor(totalSeconds % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-// Non-looping embed: used for Spotify (no clip-loop support) and for
-// YouTube links with no chosen clip start (plays normally from the top).
-function songEmbedHtml(url, { autoplay = false } = {}) {
-  const parsed = parseMusicUrl(url);
-  if (parsed?.platform === "spotify") {
-    const src = autoplay ? `${parsed.embedSrc}?autoplay=1` : parsed.embedSrc;
-    return `<iframe src="${src}" height="152" frameborder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
-  }
-  if (parsed?.platform === "youtube") {
-    const src = autoplay ? `${parsed.embedSrc}?autoplay=1` : parsed.embedSrc;
-    return `<div class="yt-embed"><iframe src="${src}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`;
-  }
-  return `<a href="${url}" target="_blank" rel="noopener noreferrer">Listen ↗</a>`;
 }
 
 function getUploaderName() {
   const select = document.getElementById("uploader-select");
   return select ? select.value : "Someone";
+}
+
+// Loops just the [start, start + CLIP_LENGTH_SECONDS) window of a native
+// <audio> element by seeking back once it reaches the end of that window.
+// `getStart` is a function (not a fixed value) so a live-dragged slider can
+// change the loop point without re-wiring the listeners.
+function wireClipLoop(audioEl, getStart) {
+  const onTimeUpdate = () => {
+    const start = getStart();
+    if (audioEl.currentTime >= start + CLIP_LENGTH_SECONDS) {
+      audioEl.currentTime = start;
+    }
+  };
+  const onEnded = () => {
+    audioEl.currentTime = getStart();
+    audioEl.play().catch(() => {});
+  };
+  audioEl.addEventListener("timeupdate", onTimeUpdate);
+  audioEl.addEventListener("ended", onEnded);
+  return () => {
+    audioEl.removeEventListener("timeupdate", onTimeUpdate);
+    audioEl.removeEventListener("ended", onEnded);
+  };
+}
+
+/* ---------- Song library ---------- */
+
+function findSong(id) {
+  return songsList.find((s) => s.id === id) || null;
+}
+
+function populateSongSelect(selectedId) {
+  const select = document.getElementById("composer-song-select");
+  select.innerHTML =
+    '<option value="">No song</option>' +
+    songsList.map((s) => `<option value="${s.id}">${escapeHtml(s.data.name)}</option>`).join("");
+  select.value = selectedId || "";
+}
+
+function getComposerClipStart() {
+  return parseInt(document.getElementById("clip-start-slider").value, 10) || 0;
+}
+
+function updateClipLabel() {
+  const start = getComposerClipStart();
+  document.getElementById("clip-time-label").textContent =
+    `${formatSecondsToTime(start)} – ${formatSecondsToTime(start + CLIP_LENGTH_SECONDS)}`;
+}
+
+function stopComposerPreview() {
+  const audio = document.getElementById("composer-preview-audio");
+  audio.pause();
+  document.getElementById("clip-preview-btn").textContent = "▶";
+}
+
+function hideClipPicker() {
+  document.getElementById("composer-clip-picker").classList.add("hidden");
+  stopComposerPreview();
+}
+
+function showClipPickerForSong(song, initialStart) {
+  const picker = document.getElementById("composer-clip-picker");
+  const slider = document.getElementById("clip-start-slider");
+  const duration = song.data.duration || 0;
+  const maxStart = Math.max(0, Math.floor(duration - CLIP_LENGTH_SECONDS));
+  slider.max = String(maxStart);
+  slider.disabled = maxStart === 0;
+  slider.value = String(Math.min(initialStart || 0, maxStart));
+  updateClipLabel();
+  picker.classList.remove("hidden");
+}
+
+function selectSong(songId, initialStart = 0) {
+  composerSelectedSongId = songId || "";
+  document.getElementById("composer-song-select").value = composerSelectedSongId;
+  stopComposerPreview();
+
+  if (!composerSelectedSongId) {
+    hideClipPicker();
+    return;
+  }
+  const song = findSong(composerSelectedSongId);
+  if (!song) {
+    hideClipPicker();
+    return;
+  }
+  showClipPickerForSong(song, initialStart);
+}
+
+function toggleComposerPreview() {
+  const audio = document.getElementById("composer-preview-audio");
+  const btn = document.getElementById("clip-preview-btn");
+  const song = findSong(composerSelectedSongId);
+  if (!song) return;
+
+  if (audio.paused) {
+    if (audio.src !== song.data.url) audio.src = song.data.url;
+    audio.currentTime = getComposerClipStart();
+    audio.play().catch(() => {});
+    btn.textContent = "⏸";
+  } else {
+    audio.pause();
+    btn.textContent = "▶";
+  }
+}
+
+async function handleSongFileSelected(file) {
+  if (!file || !file.type.startsWith("audio/")) return;
+
+  const statusEl = document.getElementById("composer-song-upload-status");
+  const uploadBtn = document.getElementById("composer-song-upload-btn");
+  statusEl.textContent = "Uploading song... 0%";
+  statusEl.classList.remove("hidden");
+  uploadBtn.disabled = true;
+
+  try {
+    const result = await uploadToCloudinary(
+      file,
+      (pct) => {
+        statusEl.textContent = `Uploading song... ${pct}%`;
+      },
+      CLOUDINARY_AUDIO_UPLOAD_URL
+    );
+
+    const name = result.original_filename || file.name.replace(/\.[^./\\]+$/, "");
+    const songData = {
+      name,
+      url: result.secure_url,
+      publicId: result.public_id,
+      duration: Math.round(result.duration || 0),
+      uploadedBy: getUploaderName(),
+      createdAt: serverTimestamp(),
+    };
+    const songDocRef = await addDoc(songsCol, songData);
+
+    // Add it locally right away rather than waiting on the snapshot
+    // listener, so it's selectable immediately.
+    songsList = [{ id: songDocRef.id, data: songData }, ...songsList];
+    populateSongSelect(songDocRef.id);
+    selectSong(songDocRef.id, 0);
+    statusEl.classList.add("hidden");
+  } catch (err) {
+    console.error("Couldn't upload song:", err);
+    statusEl.textContent = "Couldn't upload that song — try again?";
+  } finally {
+    uploadBtn.disabled = false;
+  }
 }
 
 /* ---------- Composer (add / edit) ---------- */
@@ -200,13 +236,13 @@ function resetComposer() {
   document.getElementById("composer-picker-text").textContent = "Tap to choose photos";
   document.getElementById("composer-caption").value = "";
   document.getElementById("composer-subcaption").value = "";
-  document.getElementById("composer-song").value = "";
-  document.getElementById("composer-song-start").value = "";
   document.getElementById("composer-caption-fields").classList.remove("hidden");
   document.getElementById("composer-multi-hint").classList.add("hidden");
   document.getElementById("composer-error").textContent = "";
   document.getElementById("composer-progress").classList.add("hidden");
   document.getElementById("composer-progress-text").textContent = "Uploading... 0%";
+  document.getElementById("composer-song-upload-status").classList.add("hidden");
+  selectSong("", 0);
 
   const submitBtn = document.getElementById("composer-submit");
   submitBtn.disabled = false;
@@ -264,14 +300,14 @@ function openComposerForEdit(id, data) {
 
   document.getElementById("composer-caption").value = data.caption || "";
   document.getElementById("composer-subcaption").value = data.subcaption || "";
-  document.getElementById("composer-song").value = data.songUrl || "";
-  document.getElementById("composer-song-start").value = formatSecondsToTime(data.songStart);
+  selectSong(data.songId || "", data.songStart || 0);
   document.getElementById("composer-submit").textContent = "Save";
   document.getElementById("composer-overlay").classList.remove("hidden");
 }
 
 function closeComposer() {
   document.getElementById("composer-overlay").classList.add("hidden");
+  stopComposerPreview();
 }
 
 async function handleComposerSubmit(e) {
@@ -280,29 +316,13 @@ async function handleComposerSubmit(e) {
   const submitBtn = document.getElementById("composer-submit");
   const captionInput = document.getElementById("composer-caption");
   const subcaptionInput = document.getElementById("composer-subcaption");
-  const songInput = document.getElementById("composer-song");
-  const songStartInput = document.getElementById("composer-song-start");
   errorEl.textContent = "";
 
   const isMulti = !editingId && selectedFiles.length > 1;
   const caption = isMulti ? "" : captionInput.value.trim();
   const subcaption = isMulti ? "" : subcaptionInput.value.trim();
-  const songUrl = isMulti ? "" : songInput.value.trim();
-  const songStartRaw = isMulti ? "" : songStartInput.value.trim();
-
-  if (songUrl && !parseMusicUrl(songUrl)) {
-    errorEl.textContent = "That link doesn't look like Spotify or YouTube.";
-    return;
-  }
-
-  let songStart = null;
-  if (songUrl && songStartRaw) {
-    songStart = parseTimeToSeconds(songStartRaw);
-    if (songStart === null || songStart < 0) {
-      errorEl.textContent = "That start time doesn't look right — try mm:ss.";
-      return;
-    }
-  }
+  const songId = isMulti ? "" : composerSelectedSongId;
+  const songStart = songId ? getComposerClipStart() : null;
 
   if (editingId) {
     submitBtn.disabled = true;
@@ -311,8 +331,8 @@ async function handleComposerSubmit(e) {
       await updateDoc(doc(db, "photos", editingId), {
         caption: caption || null,
         subcaption: subcaption || null,
-        songUrl: songUrl || null,
-        songStart: songStart,
+        songId: songId || null,
+        songStart,
       });
       closeComposer();
     } catch (err) {
@@ -355,8 +375,8 @@ async function handleComposerSubmit(e) {
         uploadedBy: uploader,
         caption: caption || null,
         subcaption: subcaption || null,
-        songUrl: songUrl || null,
-        songStart: songStart,
+        songId: songId || null,
+        songStart,
         createdAt: serverTimestamp(),
       });
 
@@ -410,7 +430,7 @@ function renderPhoto(item, index) {
       <button type="button" class="fav-btn ${data.favorite ? "active" : ""}" aria-label="Favorite">${
     data.favorite ? "♥" : "♡"
   }</button>
-      ${data.songUrl ? '<span class="song-badge">🎵</span>' : ""}
+      ${data.songId ? '<span class="song-badge">🎵</span>' : ""}
     </div>
     <div class="gallery-caption">${textHtml}</div>
   `;
@@ -464,6 +484,43 @@ function updateLightboxFavButton(isFav) {
   btn.classList.toggle("active", !!isFav);
 }
 
+function stopLightboxAudio() {
+  const audio = document.getElementById("lightbox-audio");
+  audio.pause();
+  unwireLightboxLoop?.();
+  unwireLightboxLoop = null;
+}
+
+function setupLightboxSong(data) {
+  const songEl = document.getElementById("lightbox-song");
+  const audio = document.getElementById("lightbox-audio");
+  const icon = document.getElementById("lightbox-song-icon");
+  stopLightboxAudio();
+  audio.src = "";
+  songEl.classList.add("hidden");
+
+  if (!data.songId) return;
+  const song = findSong(data.songId);
+  if (!song) return;
+
+  const start = data.songStart || 0;
+  audio.src = song.data.url;
+  audio.currentTime = start;
+  document.getElementById("lightbox-song-name").textContent = song.data.name;
+  icon.textContent = "▶";
+  songEl.classList.remove("hidden");
+  unwireLightboxLoop = wireClipLoop(audio, () => start);
+
+  audio
+    .play()
+    .then(() => {
+      icon.textContent = "⏸";
+    })
+    .catch(() => {
+      // Autoplay blocked — leave the play icon so they can tap to start it.
+    });
+}
+
 function openLightboxAt(index) {
   if (!displayedList.length) return;
   currentIndex = ((index % displayedList.length) + displayedList.length) % displayedList.length;
@@ -482,20 +539,7 @@ function openLightboxAt(index) {
   subcaptionEl.textContent = data.subcaption || "";
   subcaptionEl.classList.toggle("hidden", !data.subcaption);
 
-  const songEl = document.getElementById("lightbox-song");
-  destroyYtPlayer();
-  songEl.innerHTML = "";
-  songEl.classList.toggle("hidden", !data.songUrl);
-
-  if (data.songUrl) {
-    const parsedSong = parseMusicUrl(data.songUrl);
-    if (parsedSong?.platform === "youtube" && data.songStart != null) {
-      mountYouTubeLoopPlayer(songEl, parsedSong.id, data.songStart);
-    } else {
-      songEl.innerHTML = songEmbedHtml(data.songUrl, { autoplay: true });
-    }
-  }
-
+  setupLightboxSong(data);
   updateLightboxFavButton(data.favorite);
 
   const deleteBtn = document.getElementById("lightbox-delete");
@@ -516,8 +560,7 @@ function showPrevPhoto() {
 function closeLightbox() {
   document.getElementById("lightbox").classList.remove("active");
   document.getElementById("lightbox-img").src = "";
-  destroyYtPlayer();
-  document.getElementById("lightbox-song").innerHTML = "";
+  stopLightboxAudio();
   currentLightboxId = null;
   currentLightboxData = null;
   currentIndex = -1;
@@ -585,6 +628,8 @@ export function initGallery() {
     onSwipeRight: showPrevPhoto,
   });
 
+  wireClipLoop(document.getElementById("composer-preview-audio"), getComposerClipStart);
+
   document.getElementById("fav-filter-btn").addEventListener("click", () => {
     showFavoritesOnly = !showFavoritesOnly;
     updateFavFilterButton();
@@ -605,6 +650,24 @@ export function initGallery() {
     renderComposerSelection();
   });
 
+  document.getElementById("composer-song-select").addEventListener("change", (e) => {
+    selectSong(e.target.value, 0);
+  });
+  document.getElementById("composer-song-upload-btn").addEventListener("click", () => {
+    document.getElementById("composer-song-file-input").click();
+  });
+  document.getElementById("composer-song-file-input").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    handleSongFileSelected(file);
+  });
+  document.getElementById("clip-preview-btn").addEventListener("click", toggleComposerPreview);
+  document.getElementById("clip-start-slider").addEventListener("input", () => {
+    updateClipLabel();
+    const audio = document.getElementById("composer-preview-audio");
+    if (!audio.paused) audio.currentTime = getComposerClipStart();
+  });
+
   const savedUploader = localStorage.getItem("fh_uploader_name");
   const select = document.getElementById("uploader-select");
   if (savedUploader) select.value = savedUploader;
@@ -617,6 +680,21 @@ export function initGallery() {
   document.getElementById("lightbox-next").addEventListener("click", showNextPhoto);
   document.getElementById("lightbox").addEventListener("click", (e) => {
     if (e.target.id === "lightbox") closeLightbox();
+  });
+  document.getElementById("lightbox-song-toggle").addEventListener("click", () => {
+    const audio = document.getElementById("lightbox-audio");
+    const icon = document.getElementById("lightbox-song-icon");
+    if (audio.paused) {
+      audio
+        .play()
+        .then(() => {
+          icon.textContent = "⏸";
+        })
+        .catch(() => {});
+    } else {
+      audio.pause();
+      icon.textContent = "▶";
+    }
   });
   document.getElementById("lightbox-edit").addEventListener("click", () => {
     if (!currentLightboxId) return;
@@ -664,6 +742,16 @@ export function initGallery() {
     else if (e.key === "ArrowRight") showNextPhoto();
     else if (e.key === "Escape") closeLightbox();
   });
+
+  const songsQuery = query(songsCol, orderBy("createdAt", "desc"));
+  onSnapshot(
+    songsQuery,
+    (snapshot) => {
+      songsList = snapshot.docs.map((docSnap) => ({ id: docSnap.id, data: docSnap.data() }));
+      populateSongSelect(composerSelectedSongId);
+    },
+    (err) => console.error("Songs listener error:", err)
+  );
 
   const q = query(photosCol, orderBy("createdAt", "desc"));
   onSnapshot(
