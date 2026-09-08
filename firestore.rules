@@ -114,11 +114,15 @@ service cloud.firestore {
                       && request.resource.data.uploadedBy is string
                       && request.resource.data.uploadedBy.size() < 40;
 
-      // Renaming: only the name field may change.
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+      // Renaming (name) and picking a cover photo (coverPhotoId) are the
+      // only allowed edits, each independently.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'coverPhotoId'])
                       && request.resource.data.name is string
                       && request.resource.data.name.size() > 0
-                      && request.resource.data.name.size() < 60;
+                      && request.resource.data.name.size() < 60
+                      && (!('coverPhotoId' in request.resource.data) || request.resource.data.coverPhotoId == null
+                          || (request.resource.data.coverPhotoId is string
+                              && exists(/databases/$(database)/documents/photos/$(request.resource.data.coverPhotoId))));
 
       // Deletable like songs/photos — the app clears albumId on every
       // member photo before deleting the album itself, so they become
