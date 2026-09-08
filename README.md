@@ -2,7 +2,8 @@
 
 A private, shared memory album — a photo gallery where each photo can carry
 its own caption/quote and a looping 20-second clip from a shared song
-library — built as a static site for free hosting on GitHub Pages.
+library, and photos from the same day or shoot can be grouped into an
+album — built as a static site for free hosting on GitHub Pages.
 
 ## Stack
 
@@ -10,7 +11,7 @@ library — built as a static site for free hosting on GitHub Pages.
 - [Cloudinary](https://cloudinary.com) unsigned uploads for photo *and*
   audio hosting
 - [Firebase Firestore](https://firebase.google.com/docs/firestore) for photo
-  metadata and the shared song library
+  metadata and the shared song/album libraries
 
 ## Project structure
 
@@ -47,6 +48,15 @@ firestore.rules          Security rules to paste into the Firebase console
   you change those fields on an existing photo later, including swapping to
   a different song or re-picking the clip — the photo itself and who
   uploaded it can't be changed.
+- **Albums** group photos from the same day or shoot. In the composer,
+  pick an existing album or create a new one (name only) — it applies to
+  every photo in that upload, so picking several files at once and
+  assigning them all to one album in a single step works. Grouped photos
+  don't get their own tile in the main grid; instead the group shows as one
+  stacked-photo card (with a count badge) at the position of its most
+  recent photo. Tapping it opens that album's own view; the back arrow
+  returns to the main gallery. Favoriting still works across albums — the
+  Favorites filter shows matching photos flat, ignoring album grouping.
 
 ## Running locally
 
@@ -105,23 +115,22 @@ would silently break the app.
 3. Replace the existing rules with the contents of that file, then **Publish**.
 
 What those rules do:
-- Allow public **read** of the `photos` and `songs` collections (needed for
-  the gallery to load with no login system).
+- Allow public **read** of the `photos`, `songs`, and `albums` collections
+  (needed for the gallery to load with no login system).
 - On `photos`, allow **create** only when the new document has just the
   expected fields, a Cloudinary-hosted `url`, a reasonable-length
   `uploadedBy`, and — if present — a `caption` under 120 characters, a
-  `subcaption` under 300, and a `songId` that actually points at a real
-  document in `songs`.
+  `subcaption` under 300, a `songId` that actually points at a real
+  document in `songs`, and an `albumId` that actually points at a real
+  document in `albums`.
 - Allow **update** on `photos` only when it touches `caption`,
-  `subcaption`, `songId`, `songStart`, and/or `favorite` (same validation
-  as above) — the image, uploader, and timestamp can never be changed
-  after creation.
-- Allow **delete** on `photos` unconditionally, so either of you can remove
-  a photo from the app (note: this also means anyone with the site URL
-  could delete photos — see the limitation below).
-- On `songs`, allow **create** only with the expected fields and a
-  Cloudinary-hosted `url`; deny update/delete entirely (songs are
-  write-once — no in-app way to rename or remove one yet).
+  `subcaption`, `songId`, `songStart`, `albumId`, and/or `favorite` (same
+  validation as above) — the image, uploader, and timestamp can never be
+  changed after creation.
+- Allow **delete** on `photos`, `songs`, and `albums` unconditionally
+  (note: this also means anyone with the site URL could delete them — see
+  the limitation below). Songs/albums have no rename yet, and no delete
+  button exists in the UI for them — the rule just leaves the door open.
 - Deny everything else by default.
 
 **Important limitation:** there is no Firebase Auth in this app, so these

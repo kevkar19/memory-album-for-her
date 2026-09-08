@@ -53,11 +53,16 @@
   </header>
 
   <main>
-    <div class="toolbar">
+    <div id="toolbar" class="toolbar">
       <button type="button" id="fav-filter-btn" class="filter-btn">♡ All</button>
       <button type="button" id="add-photo-btn" class="upload-btn">
         <span class="upload-btn-icon">+</span> Add Photo
       </button>
+    </div>
+
+    <div id="album-header" class="album-header hidden">
+      <button type="button" id="album-back-btn" class="icon-btn" aria-label="Back to gallery">←</button>
+      <h2 id="album-header-title"></h2>
     </div>
 
     <div id="on-this-day" class="on-this-day hidden"></div>
@@ -94,6 +99,22 @@
           <option value="Shaqeelah">Shaqeelah</option>
           <option value="Me">Me</option>
         </select>
+      </div>
+
+      <div class="album-section">
+        <label class="composer-field-label">Album (optional)</label>
+        <div class="album-select-row">
+          <select id="composer-album-select">
+            <option value="">No album</option>
+          </select>
+          <button type="button" id="composer-album-new-btn" class="song-upload-btn">+ New</button>
+        </div>
+        <div id="composer-album-new-row" class="album-new-row hidden">
+          <input type="text" id="composer-album-name-input" placeholder="Album name, e.g. Gelatos Ice Cream Date" maxlength="60" />
+          <button type="button" id="composer-album-create-btn" class="song-upload-btn">Create</button>
+          <button type="button" id="composer-album-cancel-btn" class="icon-btn" aria-label="Cancel">&times;</button>
+        </div>
+        <p class="composer-field-hint">Grouping several photos into the same album? Pick it here before sharing all of them.</p>
       </div>
 
       <div id="composer-caption-fields" class="composer-caption-fields">

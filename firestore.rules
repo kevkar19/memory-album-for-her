@@ -27,9 +27,10 @@ service cloud.firestore {
       // itself always comes from our Cloudinary account. `caption` is the
       // photo's title, `subcaption` is the smaller quote/caption under it,
       // `songId` points at a document in the songs library, `songStart` is
-      // the second offset for the 20-second clip loop.
+      // the second offset for the 20-second clip loop, `albumId` points at
+      // a document in the albums library.
       allow create: if request.resource.data.keys().hasOnly(
-                        ['url', 'publicId', 'width', 'height', 'uploadedBy', 'caption', 'subcaption', 'songId', 'songStart', 'createdAt']
+                        ['url', 'publicId', 'width', 'height', 'uploadedBy', 'caption', 'subcaption', 'songId', 'songStart', 'albumId', 'createdAt']
                       )
                       && request.resource.data.url is string
                       && request.resource.data.url.matches('^https://res[.]cloudinary[.]com/z0pt1gga/.*')
@@ -44,12 +45,15 @@ service cloud.firestore {
                               && exists(/databases/$(database)/documents/songs/$(request.resource.data.songId))))
                       && (!('songStart' in request.resource.data) || request.resource.data.songStart == null
                           || (request.resource.data.songStart is int && request.resource.data.songStart >= 0
-                              && request.resource.data.songStart < 36000));
+                              && request.resource.data.songStart < 36000))
+                      && (!('albumId' in request.resource.data) || request.resource.data.albumId == null
+                          || (request.resource.data.albumId is string
+                              && exists(/databases/$(database)/documents/albums/$(request.resource.data.albumId))));
 
-      // Editing a photo: only caption/subcaption/songId/songStart/favorite
-      // may change — the image, uploader, and timestamp are immutable once
-      // created.
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption', 'subcaption', 'songId', 'songStart', 'favorite'])
+      // Editing a photo: only caption/subcaption/songId/songStart/albumId/
+      // favorite may change — the image, uploader, and timestamp are
+      // immutable once created.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption', 'subcaption', 'songId', 'songStart', 'albumId', 'favorite'])
                       && (!('caption' in request.resource.data) || request.resource.data.caption == null
                           || (request.resource.data.caption is string && request.resource.data.caption.size() < 120))
                       && (!('subcaption' in request.resource.data) || request.resource.data.subcaption == null
@@ -60,6 +64,9 @@ service cloud.firestore {
                       && (!('songStart' in request.resource.data) || request.resource.data.songStart == null
                           || (request.resource.data.songStart is int && request.resource.data.songStart >= 0
                               && request.resource.data.songStart < 36000))
+                      && (!('albumId' in request.resource.data) || request.resource.data.albumId == null
+                          || (request.resource.data.albumId is string
+                              && exists(/databases/$(database)/documents/albums/$(request.resource.data.albumId))))
                       && (!('favorite' in request.resource.data) || request.resource.data.favorite is bool);
 
       // Deleting a photo: open, by request — this app has no real auth, so
@@ -92,6 +99,23 @@ service cloud.firestore {
       // console) without needing another rules republish later. Deleting a
       // song a photo still references leaves that photo's song silently
       // unavailable rather than erroring.
+      allow update: if false;
+      allow delete: if true;
+    }
+
+    // The shared album library — lightweight named groups of photos.
+    match /albums/{albumId} {
+      allow read: if true;
+
+      allow create: if request.resource.data.keys().hasOnly(['name', 'uploadedBy', 'createdAt'])
+                      && request.resource.data.name is string
+                      && request.resource.data.name.size() > 0
+                      && request.resource.data.name.size() < 60
+                      && request.resource.data.uploadedBy is string
+                      && request.resource.data.uploadedBy.size() < 40;
+
+      // No rename yet; deletable like songs — deleting an album a photo
+      // still references just makes that photo ungrouped again.
       allow update: if false;
       allow delete: if true;
     }

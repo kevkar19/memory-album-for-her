@@ -354,6 +354,22 @@ main {
   }
 }
 
+.album-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 22px;
+}
+
+.album-header h2 {
+  font-size: 20px;
+  font-style: italic;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -489,6 +505,54 @@ main {
   justify-content: center;
   font-size: 12px;
   box-shadow: 0 4px 10px rgba(178, 76, 99, 0.25);
+}
+
+/* ---------- Album card (stacked-photo group) ---------- */
+.album-card {
+  overflow: visible;
+}
+
+.album-stack {
+  position: relative;
+  margin-top: 10px;
+}
+
+.album-stack-photo {
+  width: 100%;
+  display: block;
+  border-radius: 14px;
+}
+
+.album-stack-back {
+  position: absolute;
+  top: -10px;
+  left: 7%;
+  width: 86%;
+  z-index: 0;
+  transform: rotate(4deg);
+  box-shadow: 0 6px 16px rgba(178, 76, 99, 0.18);
+}
+
+.album-stack-front {
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 6px 16px rgba(178, 76, 99, 0.22);
+}
+
+.album-count-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(30, 12, 18, 0.6);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
 }
 
 .fav-btn {
@@ -803,7 +867,9 @@ main {
 
 #composer-caption,
 #composer-subcaption,
-#composer-song-select {
+#composer-song-select,
+#composer-album-select,
+#composer-album-name-input {
   padding: 11px 13px;
   border-radius: 11px;
   border: 1px solid var(--blush);
@@ -817,7 +883,9 @@ main {
 
 #composer-caption:focus,
 #composer-subcaption:focus,
-#composer-song-select:focus {
+#composer-song-select:focus,
+#composer-album-select:focus,
+#composer-album-name-input:focus {
   outline: none;
   border-color: var(--rose);
   box-shadow: 0 0 0 4px rgba(233, 140, 160, 0.12);
@@ -864,6 +932,38 @@ main {
 
 .song-upload-btn:disabled {
   opacity: 0.6;
+}
+
+.album-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--cream-deep);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.album-select-row {
+  display: flex;
+  gap: 8px;
+}
+
+#composer-album-select {
+  flex: 1;
+  min-width: 0;
+  background: var(--white);
+}
+
+.album-new-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#composer-album-name-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--white);
 }
 
 .clip-picker {

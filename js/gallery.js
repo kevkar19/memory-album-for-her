@@ -20,6 +20,7 @@ import { initZoom } from "./zoom.js";
 
 const photosCol = collection(db, "photos");
 const songsCol = collection(db, "songs");
+const albumsCol = collection(db, "albums");
 const CLIP_LENGTH_SECONDS = 20;
 
 let selectedFiles = [];
@@ -29,13 +30,17 @@ let currentLightboxData = null;
 let zoomController = null;
 
 let allPhotos = []; // [{id, data}], full list in current sort order
-let displayedList = []; // filtered subset actually shown (favorites or all)
+let displayedList = []; // flat list backing lightbox swipe/index navigation
 let currentIndex = -1; // index of the open lightbox photo within displayedList
 let showFavoritesOnly = false;
+let currentAlbumId = null; // set while browsing inside one album
 
 let songsList = []; // [{id, data}], the shared song library
 let composerSelectedSongId = "";
 let unwireLightboxLoop = null;
+
+let albumsList = []; // [{id, data}], the shared album library
+let composerSelectedAlbumId = "";
 
 function uploadToCloudinary(file, onProgress, uploadUrl = CLOUDINARY_UPLOAD_URL) {
   return new Promise((resolve, reject) => {
@@ -219,6 +224,49 @@ async function handleSongFileSelected(file) {
   }
 }
 
+/* ---------- Album library ---------- */
+
+function findAlbum(id) {
+  return albumsList.find((a) => a.id === id) || null;
+}
+
+function populateAlbumSelect(selectedId) {
+  const select = document.getElementById("composer-album-select");
+  select.innerHTML =
+    '<option value="">No album</option>' +
+    albumsList.map((a) => `<option value="${a.id}">${escapeHtml(a.data.name)}</option>`).join("");
+  select.value = selectedId || "";
+}
+
+function selectAlbum(albumId) {
+  composerSelectedAlbumId = albumId || "";
+  document.getElementById("composer-album-select").value = composerSelectedAlbumId;
+}
+
+async function handleAlbumCreate() {
+  const input = document.getElementById("composer-album-name-input");
+  const name = input.value.trim();
+  if (!name) return;
+
+  const btn = document.getElementById("composer-album-create-btn");
+  btn.disabled = true;
+  try {
+    const albumData = { name, uploadedBy: getUploaderName(), createdAt: serverTimestamp() };
+    const albumRef = await addDoc(albumsCol, albumData);
+
+    albumsList = [{ id: albumRef.id, data: albumData }, ...albumsList];
+    populateAlbumSelect(albumRef.id);
+    selectAlbum(albumRef.id);
+    document.getElementById("composer-album-new-row").classList.add("hidden");
+    input.value = "";
+  } catch (err) {
+    console.error("Couldn't create album:", err);
+    document.getElementById("composer-error").textContent = "Couldn't create that album — try again?";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 /* ---------- Composer (add / edit) ---------- */
 
 function resetComposer() {
@@ -243,6 +291,9 @@ function resetComposer() {
   document.getElementById("composer-progress-text").textContent = "Uploading... 0%";
   document.getElementById("composer-song-upload-status").classList.add("hidden");
   selectSong("", 0);
+  selectAlbum("");
+  document.getElementById("composer-album-new-row").classList.add("hidden");
+  document.getElementById("composer-album-name-input").value = "";
 
   const submitBtn = document.getElementById("composer-submit");
   submitBtn.disabled = false;
@@ -301,6 +352,7 @@ function openComposerForEdit(id, data) {
   document.getElementById("composer-caption").value = data.caption || "";
   document.getElementById("composer-subcaption").value = data.subcaption || "";
   selectSong(data.songId || "", data.songStart || 0);
+  selectAlbum(data.albumId || "");
   document.getElementById("composer-submit").textContent = "Save";
   document.getElementById("composer-overlay").classList.remove("hidden");
 }
@@ -323,6 +375,7 @@ async function handleComposerSubmit(e) {
   const subcaption = isMulti ? "" : subcaptionInput.value.trim();
   const songId = isMulti ? "" : composerSelectedSongId;
   const songStart = songId ? getComposerClipStart() : null;
+  const albumId = composerSelectedAlbumId; // applies to the whole batch, not per-photo
 
   if (editingId) {
     submitBtn.disabled = true;
@@ -333,6 +386,7 @@ async function handleComposerSubmit(e) {
         subcaption: subcaption || null,
         songId: songId || null,
         songStart,
+        albumId: albumId || null,
       });
       closeComposer();
     } catch (err) {
@@ -377,6 +431,7 @@ async function handleComposerSubmit(e) {
         subcaption: subcaption || null,
         songId: songId || null,
         songStart,
+        albumId: albumId || null,
         createdAt: serverTimestamp(),
       });
 
@@ -447,29 +502,127 @@ function renderPhoto(item, index) {
   return el;
 }
 
-function applyFilter() {
-  displayedList = showFavoritesOnly ? allPhotos.filter((p) => p.data.favorite) : allPhotos;
+// Groups allPhotos into grid entries for the normal (non-album, non-
+// favorites) view: consecutive-or-not photos sharing an albumId collapse
+// into one album card at the position of their most recent photo, since
+// allPhotos is already sorted newest-first. Ungrouped photos pass through
+// as individual entries. Returns the flat list of ungrouped photos too,
+// since that's what backs lightbox swipe navigation in this view.
+function buildGroupedEntries() {
+  const entries = [];
+  const flatUngrouped = [];
+  const seenAlbums = new Map();
+
+  for (const item of allPhotos) {
+    const albumId = item.data.albumId;
+    if (!albumId) {
+      flatUngrouped.push(item);
+      entries.push({ type: "photo", item, index: flatUngrouped.length - 1 });
+      continue;
+    }
+    if (!seenAlbums.has(albumId)) {
+      const albumEntry = { type: "album", albumId, photos: [] };
+      seenAlbums.set(albumId, albumEntry);
+      entries.push(albumEntry);
+    }
+    seenAlbums.get(albumId).photos.push(item);
+  }
+
+  return { entries, flatUngrouped };
+}
+
+function renderAlbumCard(entry) {
+  const album = findAlbum(entry.albumId);
+  const name = album ? album.data.name : "Album";
+  const photos = entry.photos; // newest first
+  const front = photos[0];
+  const back = photos[1];
+
+  const el = document.createElement("div");
+  el.className = "gallery-item album-card";
+  el.innerHTML = `
+    <div class="album-stack">
+      ${back ? `<img class="album-stack-photo album-stack-back" src="${back.data.url}" alt="" />` : ""}
+      <img class="album-stack-photo album-stack-front" src="${front.data.url}" alt="" loading="lazy" />
+      <span class="album-count-badge">📷 ${photos.length}</span>
+    </div>
+    <div class="gallery-caption">
+      <p class="gallery-title">${escapeHtml(name)}</p>
+    </div>
+  `;
+
+  const frontImg = el.querySelector(".album-stack-front");
+  frontImg.addEventListener("load", () => el.classList.add("loaded"));
+  el.addEventListener("click", () => openAlbum(entry.albumId));
+  return el;
 }
 
 function renderGrid() {
   const grid = document.getElementById("gallery-grid");
   const emptyState = document.getElementById("gallery-empty");
-  applyFilter();
+  const toolbar = document.getElementById("toolbar");
+  const albumHeader = document.getElementById("album-header");
   grid.innerHTML = "";
 
-  if (displayedList.length === 0) {
-    emptyState.classList.remove("hidden");
-    emptyState.querySelector(".empty-title").textContent = showFavoritesOnly
-      ? "No favorites yet"
-      : "No photos yet";
-    emptyState.querySelector(".empty-subtitle").textContent = showFavoritesOnly
-      ? "Tap the heart on a photo to save it here"
-      : "Add the first one to start the story";
+  const inAlbumView = !!currentAlbumId;
+  toolbar.classList.toggle("hidden", inAlbumView);
+  albumHeader.classList.toggle("hidden", !inAlbumView);
+
+  if (inAlbumView) {
+    const album = findAlbum(currentAlbumId);
+    document.getElementById("album-header-title").textContent = album ? album.data.name : "Album";
+    displayedList = allPhotos.filter((p) => p.data.albumId === currentAlbumId);
+
+    if (displayedList.length === 0) {
+      emptyState.classList.remove("hidden");
+      emptyState.querySelector(".empty-title").textContent = "No photos in this album";
+      emptyState.querySelector(".empty-subtitle").textContent = "";
+      return;
+    }
+    emptyState.classList.add("hidden");
+    displayedList.forEach((item, index) => grid.appendChild(renderPhoto(item, index)));
     return;
   }
 
+  if (showFavoritesOnly) {
+    displayedList = allPhotos.filter((p) => p.data.favorite);
+
+    if (displayedList.length === 0) {
+      emptyState.classList.remove("hidden");
+      emptyState.querySelector(".empty-title").textContent = "No favorites yet";
+      emptyState.querySelector(".empty-subtitle").textContent = "Tap the heart on a photo to save it here";
+      return;
+    }
+    emptyState.classList.add("hidden");
+    displayedList.forEach((item, index) => grid.appendChild(renderPhoto(item, index)));
+    return;
+  }
+
+  const { entries, flatUngrouped } = buildGroupedEntries();
+  displayedList = flatUngrouped;
+
+  if (entries.length === 0) {
+    emptyState.classList.remove("hidden");
+    emptyState.querySelector(".empty-title").textContent = "No photos yet";
+    emptyState.querySelector(".empty-subtitle").textContent = "Add the first one to start the story";
+    return;
+  }
   emptyState.classList.add("hidden");
-  displayedList.forEach((item, index) => grid.appendChild(renderPhoto(item, index)));
+  entries.forEach((entry) => {
+    grid.appendChild(entry.type === "album" ? renderAlbumCard(entry) : renderPhoto(entry.item, entry.index));
+  });
+}
+
+function openAlbum(albumId) {
+  currentAlbumId = albumId;
+  renderGrid();
+  renderOnThisDay();
+}
+
+function closeAlbumView() {
+  currentAlbumId = null;
+  renderGrid();
+  renderOnThisDay();
 }
 
 function updateFavFilterButton() {
@@ -589,7 +742,7 @@ function findOnThisDayPhoto(list) {
 
 function renderOnThisDay() {
   const container = document.getElementById("on-this-day");
-  const match = findOnThisDayPhoto(allPhotos);
+  const match = currentAlbumId ? null : findOnThisDayPhoto(allPhotos);
 
   if (!match) {
     container.classList.add("hidden");
@@ -635,6 +788,7 @@ export function initGallery() {
     updateFavFilterButton();
     renderGrid();
   });
+  document.getElementById("album-back-btn").addEventListener("click", closeAlbumView);
 
   document.getElementById("add-photo-btn").addEventListener("click", openComposerForAdd);
   document.getElementById("composer-close").addEventListener("click", closeComposer);
@@ -662,6 +816,19 @@ export function initGallery() {
     handleSongFileSelected(file);
   });
   document.getElementById("clip-preview-btn").addEventListener("click", toggleComposerPreview);
+
+  document.getElementById("composer-album-select").addEventListener("change", (e) => {
+    selectAlbum(e.target.value);
+  });
+  document.getElementById("composer-album-new-btn").addEventListener("click", () => {
+    document.getElementById("composer-album-new-row").classList.remove("hidden");
+    document.getElementById("composer-album-name-input").focus();
+  });
+  document.getElementById("composer-album-cancel-btn").addEventListener("click", () => {
+    document.getElementById("composer-album-new-row").classList.add("hidden");
+    document.getElementById("composer-album-name-input").value = "";
+  });
+  document.getElementById("composer-album-create-btn").addEventListener("click", handleAlbumCreate);
   document.getElementById("clip-start-slider").addEventListener("input", () => {
     updateClipLabel();
     const audio = document.getElementById("composer-preview-audio");
@@ -751,6 +918,17 @@ export function initGallery() {
       populateSongSelect(composerSelectedSongId);
     },
     (err) => console.error("Songs listener error:", err)
+  );
+
+  const albumsQuery = query(albumsCol, orderBy("createdAt", "desc"));
+  onSnapshot(
+    albumsQuery,
+    (snapshot) => {
+      albumsList = snapshot.docs.map((docSnap) => ({ id: docSnap.id, data: docSnap.data() }));
+      populateAlbumSelect(composerSelectedAlbumId);
+      if (currentAlbumId) renderGrid();
+    },
+    (err) => console.error("Albums listener error:", err)
   );
 
   const q = query(photosCol, orderBy("createdAt", "desc"));
