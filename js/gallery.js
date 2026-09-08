@@ -17,6 +17,19 @@ import {
 } from "./cloudinary-config.js";
 import { escapeHtml } from "./utils.js";
 import { initZoom } from "./zoom.js";
+import {
+  ICON_HEART_OUTLINE,
+  ICON_HEART_FILLED,
+  ICON_PLAY,
+  ICON_PAUSE,
+  ICON_MUSIC_NOTE,
+  ICON_CAMERA,
+  ICON_SPARKLE,
+  ICON_STAR_OUTLINE,
+  ICON_STAR_FILLED,
+  ICON_CHEVRON_LEFT,
+  ICON_CHEVRON_RIGHT,
+} from "./icons.js";
 
 const photosCol = collection(db, "photos");
 const songsCol = collection(db, "songs");
@@ -127,7 +140,7 @@ function updateClipLabel() {
 function stopComposerPreview() {
   const audio = document.getElementById("composer-preview-audio");
   audio.pause();
-  document.getElementById("clip-preview-btn").textContent = "▶";
+  document.getElementById("clip-preview-btn").innerHTML = ICON_PLAY;
 }
 
 function hideClipPicker() {
@@ -174,10 +187,10 @@ function toggleComposerPreview() {
     if (audio.src !== song.data.url) audio.src = song.data.url;
     audio.currentTime = getComposerClipStart();
     audio.play().catch(() => {});
-    btn.textContent = "⏸";
+    btn.innerHTML = ICON_PAUSE;
   } else {
     audio.pause();
-    btn.textContent = "▶";
+    btn.innerHTML = ICON_PLAY;
   }
 }
 
@@ -264,6 +277,76 @@ async function handleAlbumCreate() {
     document.getElementById("composer-error").textContent = "Couldn't create that album — try again?";
   } finally {
     btn.disabled = false;
+  }
+}
+
+async function handleAlbumRename() {
+  const album = findAlbum(currentAlbumId);
+  if (!album) return;
+
+  const newName = window.prompt("Rename this album:", album.data.name);
+  if (newName === null) return; // cancelled
+  const trimmed = newName.trim();
+  if (!trimmed || trimmed === album.data.name) return;
+
+  try {
+    await updateDoc(doc(db, "albums", currentAlbumId), { name: trimmed });
+  } catch (err) {
+    console.error("Couldn't rename album:", err);
+    window.alert("Couldn't rename — try again?");
+  }
+}
+
+async function handleAlbumDelete() {
+  const album = findAlbum(currentAlbumId);
+  if (!album) return;
+
+  const confirmed = window.confirm(
+    `Delete "${album.data.name}"? Its photos will stay in your gallery, just ungrouped.`
+  );
+  if (!confirmed) return;
+
+  const albumId = currentAlbumId;
+  const memberPhotos = allPhotos.filter((p) => p.data.albumId === albumId);
+
+  try {
+    await Promise.all(memberPhotos.map((p) => updateDoc(doc(db, "photos", p.id), { albumId: null })));
+    await deleteDoc(doc(db, "albums", albumId));
+    closeAlbumView();
+  } catch (err) {
+    console.error("Couldn't delete album:", err);
+    window.alert("Couldn't delete that album — try again?");
+  }
+}
+
+function updateLightboxCoverLink(data) {
+  const link = document.getElementById("lightbox-set-cover");
+  if (!data.albumId) {
+    link.classList.add("hidden");
+    return;
+  }
+  const album = findAlbum(data.albumId);
+  const isCover = !!album && album.data.coverPhotoId === currentLightboxId;
+  link.classList.remove("hidden");
+  link.innerHTML = isCover ? `${ICON_STAR_FILLED} Album cover` : `${ICON_STAR_OUTLINE} Set as album cover`;
+}
+
+async function handleSetAlbumCover() {
+  if (!currentLightboxId || !currentLightboxData?.albumId) return;
+  const album = findAlbum(currentLightboxData.albumId);
+  if (!album) return;
+
+  const photoId = currentLightboxId;
+  const previousCover = album.data.coverPhotoId;
+  album.data.coverPhotoId = photoId; // optimistic
+  updateLightboxCoverLink(currentLightboxData);
+
+  try {
+    await updateDoc(doc(db, "albums", currentLightboxData.albumId), { coverPhotoId: photoId });
+  } catch (err) {
+    console.error("Couldn't set album cover:", err);
+    album.data.coverPhotoId = previousCover;
+    updateLightboxCoverLink(currentLightboxData);
   }
 }
 
@@ -483,9 +566,9 @@ function renderPhoto(item, index) {
     <div class="gallery-img-wrap">
       <img src="${data.url}" alt="A shared memory" loading="lazy" />
       <button type="button" class="fav-btn ${data.favorite ? "active" : ""}" aria-label="Favorite">${
-    data.favorite ? "♥" : "♡"
+    data.favorite ? ICON_HEART_FILLED : ICON_HEART_OUTLINE
   }</button>
-      ${data.songId ? '<span class="song-badge">🎵</span>' : ""}
+      ${data.songId ? `<span class="song-badge">${ICON_MUSIC_NOTE}</span>` : ""}
     </div>
     <div class="gallery-caption">${textHtml}</div>
   `;
@@ -515,7 +598,9 @@ function buildGroupedEntries() {
 
   for (const item of allPhotos) {
     const albumId = item.data.albumId;
-    if (!albumId) {
+    // Defensive: only group if the album still actually exists — if it was
+    // deleted, treat member photos as ungrouped individual photos again.
+    if (!albumId || !findAlbum(albumId)) {
       flatUngrouped.push(item);
       entries.push({ type: "photo", item, index: flatUngrouped.length - 1 });
       continue;
@@ -535,16 +620,23 @@ function renderAlbumCard(entry) {
   const album = findAlbum(entry.albumId);
   const name = album ? album.data.name : "Album";
   const photos = entry.photos; // newest first
-  const front = photos[0];
-  const back = photos[1];
+  const coverId = album?.data.coverPhotoId;
+  const coverIndex = coverId ? photos.findIndex((p) => p.id === coverId) : -1;
+  let previewIndex = coverIndex >= 0 ? coverIndex : 0;
 
   const el = document.createElement("div");
   el.className = "gallery-item album-card";
   el.innerHTML = `
     <div class="album-stack">
-      ${back ? `<img class="album-stack-photo album-stack-back" src="${back.data.url}" alt="" />` : ""}
-      <img class="album-stack-photo album-stack-front" src="${front.data.url}" alt="" loading="lazy" />
-      <span class="album-count-badge">📷 ${photos.length}</span>
+      <img class="album-stack-photo album-stack-back" src="" alt="" />
+      <img class="album-stack-photo album-stack-front" src="" alt="" loading="lazy" />
+      ${
+        photos.length > 1
+          ? `<button type="button" class="album-preview-nav album-preview-prev" aria-label="Previous photo in album">${ICON_CHEVRON_LEFT}</button>
+             <button type="button" class="album-preview-nav album-preview-next" aria-label="Next photo in album">${ICON_CHEVRON_RIGHT}</button>`
+          : ""
+      }
+      <span class="album-count-badge">${ICON_CAMERA} ${photos.length}</span>
     </div>
     <div class="gallery-caption">
       <p class="gallery-title">${escapeHtml(name)}</p>
@@ -552,7 +644,32 @@ function renderAlbumCard(entry) {
   `;
 
   const frontImg = el.querySelector(".album-stack-front");
-  frontImg.addEventListener("load", () => el.classList.add("loaded"));
+  const backImg = el.querySelector(".album-stack-back");
+
+  function updatePreview() {
+    frontImg.src = photos[previewIndex].data.url;
+    if (photos.length > 1) {
+      backImg.src = photos[(previewIndex + 1) % photos.length].data.url;
+      backImg.classList.remove("hidden");
+    } else {
+      backImg.classList.add("hidden");
+    }
+  }
+  updatePreview();
+
+  frontImg.addEventListener("load", () => el.classList.add("loaded"), { once: true });
+
+  el.querySelector(".album-preview-prev")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    previewIndex = (previewIndex - 1 + photos.length) % photos.length;
+    updatePreview();
+  });
+  el.querySelector(".album-preview-next")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    previewIndex = (previewIndex + 1) % photos.length;
+    updatePreview();
+  });
+
   el.addEventListener("click", () => openAlbum(entry.albumId));
   return el;
 }
@@ -563,6 +680,12 @@ function renderGrid() {
   const toolbar = document.getElementById("toolbar");
   const albumHeader = document.getElementById("album-header");
   grid.innerHTML = "";
+
+  // If the album being viewed vanished (deleted from elsewhere), fall back
+  // to the main gallery instead of showing a broken/empty album view.
+  if (currentAlbumId && !findAlbum(currentAlbumId)) {
+    currentAlbumId = null;
+  }
 
   const inAlbumView = !!currentAlbumId;
   toolbar.classList.toggle("hidden", inAlbumView);
@@ -628,12 +751,12 @@ function closeAlbumView() {
 function updateFavFilterButton() {
   const btn = document.getElementById("fav-filter-btn");
   btn.classList.toggle("active", showFavoritesOnly);
-  btn.textContent = showFavoritesOnly ? "♥ Favorites" : "♡ All";
+  btn.innerHTML = showFavoritesOnly ? `${ICON_HEART_FILLED} Favorites` : `${ICON_HEART_OUTLINE} All`;
 }
 
 function updateLightboxFavButton(isFav) {
   const btn = document.getElementById("lightbox-fav");
-  btn.textContent = isFav ? "♥" : "♡";
+  btn.innerHTML = isFav ? ICON_HEART_FILLED : ICON_HEART_OUTLINE;
   btn.classList.toggle("active", !!isFav);
 }
 
@@ -660,14 +783,14 @@ function setupLightboxSong(data) {
   audio.src = song.data.url;
   audio.currentTime = start;
   document.getElementById("lightbox-song-name").textContent = song.data.name;
-  icon.textContent = "▶";
+  icon.innerHTML = ICON_PLAY;
   songEl.classList.remove("hidden");
   unwireLightboxLoop = wireClipLoop(audio, () => start);
 
   audio
     .play()
     .then(() => {
-      icon.textContent = "⏸";
+      icon.innerHTML = ICON_PAUSE;
     })
     .catch(() => {
       // Autoplay blocked — leave the play icon so they can tap to start it.
@@ -694,6 +817,7 @@ function openLightboxAt(index) {
 
   setupLightboxSong(data);
   updateLightboxFavButton(data.favorite);
+  updateLightboxCoverLink(data);
 
   const deleteBtn = document.getElementById("lightbox-delete");
   deleteBtn.disabled = false;
@@ -758,7 +882,7 @@ function renderOnThisDay() {
   container.innerHTML = `
     <img src="${item.data.url}" alt="" />
     <div class="on-this-day-text">
-      <p class="on-this-day-label">✨ On this day, ${yearsLabel}</p>
+      <p class="on-this-day-label">${ICON_SPARKLE} On this day, ${yearsLabel}</p>
       <p class="on-this-day-title">${escapeHtml(item.data.caption || "a memory")}</p>
     </div>
   `;
@@ -789,6 +913,8 @@ export function initGallery() {
     renderGrid();
   });
   document.getElementById("album-back-btn").addEventListener("click", closeAlbumView);
+  document.getElementById("album-rename-btn").addEventListener("click", handleAlbumRename);
+  document.getElementById("album-delete-btn").addEventListener("click", handleAlbumDelete);
 
   document.getElementById("add-photo-btn").addEventListener("click", openComposerForAdd);
   document.getElementById("composer-close").addEventListener("click", closeComposer);
@@ -855,12 +981,12 @@ export function initGallery() {
       audio
         .play()
         .then(() => {
-          icon.textContent = "⏸";
+          icon.innerHTML = ICON_PAUSE;
         })
         .catch(() => {});
     } else {
       audio.pause();
-      icon.textContent = "▶";
+      icon.innerHTML = ICON_PLAY;
     }
   });
   document.getElementById("lightbox-edit").addEventListener("click", () => {
@@ -902,6 +1028,7 @@ export function initGallery() {
       updateLightboxFavButton(!newVal);
     }
   });
+  document.getElementById("lightbox-set-cover").addEventListener("click", handleSetAlbumCover);
 
   document.addEventListener("keydown", (e) => {
     if (!document.getElementById("lightbox").classList.contains("active")) return;

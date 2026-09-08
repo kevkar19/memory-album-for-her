@@ -53,10 +53,17 @@ firestore.rules          Security rules to paste into the Firebase console
   every photo in that upload, so picking several files at once and
   assigning them all to one album in a single step works. Grouped photos
   don't get their own tile in the main grid; instead the group shows as one
-  stacked-photo card (with a count badge) at the position of its most
-  recent photo. Tapping it opens that album's own view; the back arrow
-  returns to the main gallery. Favoriting still works across albums — the
-  Favorites filter shows matching photos flat, ignoring album grouping.
+  stacked-photo card with a count badge, positioned at its most recent
+  photo's spot in the feed. Small arrows on the card cycle through a
+  preview of its photos without opening it; tapping the card itself opens
+  the full album view (back arrow returns to the main gallery). Inside
+  that view, the pencil/trash icons next to the title rename the album or
+  delete it — deleting an album never deletes its photos, it just clears
+  their album so they go back to being individual photos. Any photo in an
+  album has a **Set as album cover** link in its full-screen view, which
+  picks the photo shown on top of the stacked card. Favoriting still works
+  across albums — the Favorites filter shows matching photos flat,
+  ignoring album grouping.
 
 ## Running locally
 
@@ -127,10 +134,14 @@ What those rules do:
   `subcaption`, `songId`, `songStart`, `albumId`, and/or `favorite` (same
   validation as above) — the image, uploader, and timestamp can never be
   changed after creation.
+- On `albums`, allow **update** only when it touches `name` (rename) or
+  `coverPhotoId` (points at a real document in `photos`).
 - Allow **delete** on `photos`, `songs`, and `albums` unconditionally
   (note: this also means anyone with the site URL could delete them — see
-  the limitation below). Songs/albums have no rename yet, and no delete
-  button exists in the UI for them — the rule just leaves the door open.
+  the limitation below). Songs have no rename yet and no delete button in
+  the UI (the rule just leaves the door open); the app itself handles
+  album deletes by clearing `albumId` on every member photo first, so
+  deleting an album never deletes its photos.
 - Deny everything else by default.
 
 **Important limitation:** there is no Firebase Auth in this app, so these

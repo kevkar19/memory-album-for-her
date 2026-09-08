@@ -2,6 +2,7 @@
 // to load one (e.g. the Firebase SDK being blocked by a network/extension)
 // can never prevent the others from working — the PIN gate in particular
 // must always function even if the gallery can't reach Firebase/Cloudinary.
+import { ICON_WARNING } from "./icons.js";
 
 async function boot() {
   try {
@@ -20,7 +21,7 @@ async function boot() {
     if (empty) {
       empty.classList.remove("hidden");
       empty.innerHTML = `
-        <div class="empty-icon">⚠️</div>
+        <div class="empty-icon">${ICON_WARNING}</div>
         <p class="empty-title">Couldn't load the gallery</p>
         <p class="empty-subtitle">Check your connection and reload the page</p>
       `;

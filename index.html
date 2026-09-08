@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
 <title>For her: Shaqeelah</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%92%97</text></svg>" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23d96c87' d='M12 20s-7.5-4.6-10-9.1C.5 7.8 2.3 4.5 5.8 4.5c2 0 3.6 1.2 6.2 4 2.6-2.8 4.2-4 6.2-4 3.5 0 5.3 3.3 3.8 6.4C19.5 15.4 12 20 12 20Z'/></svg>" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Cormorant+Garamond:ital,wght@0,500;1,500&family=Dancing+Script:wght@600&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -40,7 +40,7 @@
 
 <!-- Main app -->
 <div id="app" class="hidden">
-  <button type="button" id="lock-btn" class="icon-btn lock-btn" aria-label="Lock album">🔒</button>
+  <button type="button" id="lock-btn" class="icon-btn lock-btn" aria-label="Lock album"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></button>
   <header class="app-header">
     <svg class="app-ornament" width="100" height="22" viewBox="0 0 120 26" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <path d="M2 13 C 32 1, 88 1, 118 13" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
@@ -54,21 +54,25 @@
 
   <main>
     <div id="toolbar" class="toolbar">
-      <button type="button" id="fav-filter-btn" class="filter-btn">♡ All</button>
+      <button type="button" id="fav-filter-btn" class="filter-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-10-9.1C.5 7.8 2.3 4.5 5.8 4.5c2 0 3.6 1.2 6.2 4 2.6-2.8 4.2-4 6.2-4 3.5 0 5.3 3.3 3.8 6.4C19.5 15.4 12 20 12 20Z"/></svg> All</button>
       <button type="button" id="add-photo-btn" class="upload-btn">
         <span class="upload-btn-icon">+</span> Add Photo
       </button>
     </div>
 
     <div id="album-header" class="album-header hidden">
-      <button type="button" id="album-back-btn" class="icon-btn" aria-label="Back to gallery">←</button>
+      <button type="button" id="album-back-btn" class="icon-btn" aria-label="Back to gallery"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg></button>
       <h2 id="album-header-title"></h2>
+      <div class="album-header-actions">
+        <button type="button" id="album-rename-btn" class="icon-btn" aria-label="Rename album"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4.2L18.8 9.4a2 2 0 0 0 0-2.8L18 5.8a2 2 0 0 0-2.8 0L4.6 16.4 4 20Z"/><path d="M14 7.5 16.5 10"/></svg></button>
+        <button type="button" id="album-delete-btn" class="icon-btn" aria-label="Delete album"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7h15"/><path d="M9.5 7V4.8a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V7"/><path d="M6.5 7 7.4 19.2a1 1 0 0 0 1 .9h7.2a1 1 0 0 0 1-.9L17.5 7"/><path d="M10.3 11v6M13.7 11v6"/></svg></button>
+      </div>
     </div>
 
     <div id="on-this-day" class="on-this-day hidden"></div>
 
     <div id="gallery-empty" class="empty-state hidden">
-      <div class="empty-icon">📷</div>
+      <div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5h3.2L8.8 6h6.4l1.6 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13.5" r="3"/></svg></div>
       <p class="empty-title">No photos yet</p>
       <p class="empty-subtitle">Add the first one to start the story</p>
     </div>
@@ -82,7 +86,7 @@
   <div id="composer-box" class="composer-box">
     <div class="composer-header">
       <h3 id="composer-title">Add a photo</h3>
-      <button type="button" id="composer-close" class="icon-btn" aria-label="Close">&times;</button>
+      <button type="button" id="composer-close" class="icon-btn" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg></button>
     </div>
 
     <form id="composer-form">
@@ -112,7 +116,7 @@
         <div id="composer-album-new-row" class="album-new-row hidden">
           <input type="text" id="composer-album-name-input" placeholder="Album name, e.g. Gelatos Ice Cream Date" maxlength="60" />
           <button type="button" id="composer-album-create-btn" class="song-upload-btn">Create</button>
-          <button type="button" id="composer-album-cancel-btn" class="icon-btn" aria-label="Cancel">&times;</button>
+          <button type="button" id="composer-album-cancel-btn" class="icon-btn" aria-label="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg></button>
         </div>
         <p class="composer-field-hint">Grouping several photos into the same album? Pick it here before sharing all of them.</p>
       </div>
@@ -134,7 +138,7 @@
 
           <div id="composer-clip-picker" class="clip-picker hidden">
             <div class="clip-picker-header">
-              <button type="button" id="clip-preview-btn" class="clip-preview-btn" aria-label="Preview clip">▶</button>
+              <button type="button" id="clip-preview-btn" class="clip-preview-btn" aria-label="Preview clip"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 5.6v12.8l10.5-6.4L8.5 5.6Z"/></svg></button>
               <span id="clip-time-label" class="clip-time-label">0:00 – 0:20</span>
             </div>
             <input type="range" id="clip-start-slider" min="0" max="0" step="1" value="0" />
@@ -158,23 +162,24 @@
 
 <!-- Lightbox -->
 <div id="lightbox" class="lightbox">
-  <button type="button" id="lightbox-close" class="icon-btn lightbox-close" aria-label="Close">&times;</button>
-  <button type="button" id="lightbox-prev" class="icon-btn lightbox-nav lightbox-prev" aria-label="Previous photo">‹</button>
-  <button type="button" id="lightbox-next" class="icon-btn lightbox-nav lightbox-next" aria-label="Next photo">›</button>
+  <button type="button" id="lightbox-close" class="icon-btn lightbox-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg></button>
+  <button type="button" id="lightbox-prev" class="icon-btn lightbox-nav lightbox-prev" aria-label="Previous photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 8 12l7 7"/></svg></button>
+  <button type="button" id="lightbox-next" class="icon-btn lightbox-nav lightbox-next" aria-label="Next photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
   <div class="lightbox-content">
     <img id="lightbox-img" src="" alt="" />
-    <button type="button" id="lightbox-fav" class="lightbox-fav" aria-label="Favorite">♡</button>
+    <button type="button" id="lightbox-fav" class="lightbox-fav" aria-label="Favorite"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-10-9.1C.5 7.8 2.3 4.5 5.8 4.5c2 0 3.6 1.2 6.2 4 2.6-2.8 4.2-4 6.2-4 3.5 0 5.3 3.3 3.8 6.4C19.5 15.4 12 20 12 20Z"/></svg></button>
     <div class="lightbox-overlay">
       <p id="lightbox-caption" class="lightbox-caption"></p>
       <p id="lightbox-subcaption" class="lightbox-subcaption"></p>
       <div id="lightbox-song" class="lightbox-song hidden">
         <button type="button" id="lightbox-song-toggle" class="lightbox-song-toggle" aria-label="Play or pause song">
-          <span id="lightbox-song-icon">▶</span>
+          <span id="lightbox-song-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 5.6v12.8l10.5-6.4L8.5 5.6Z"/></svg></span>
         </button>
         <span id="lightbox-song-name" class="lightbox-song-name"></span>
       </div>
-      <button type="button" id="lightbox-edit" class="lightbox-edit">✎ Edit title, quote &amp; song</button>
-      <button type="button" id="lightbox-delete" class="lightbox-delete-link">Delete this photo</button>
+      <button type="button" id="lightbox-set-cover" class="lightbox-cover-link hidden"></button>
+      <button type="button" id="lightbox-edit" class="lightbox-edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4.2L18.8 9.4a2 2 0 0 0 0-2.8L18 5.8a2 2 0 0 0-2.8 0L4.6 16.4 4 20Z"/><path d="M14 7.5 16.5 10"/></svg> Edit title, quote &amp; song</button>
+      <button type="button" id="lightbox-delete" class="lightbox-delete-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7h15"/><path d="M9.5 7V4.8a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V7"/><path d="M6.5 7 7.4 19.2a1 1 0 0 0 1 .9h7.2a1 1 0 0 0 1-.9L17.5 7"/><path d="M10.3 11v6M13.7 11v6"/></svg> Delete this photo</button>
     </div>
   </div>
   <audio id="lightbox-audio" preload="none"></audio>
