@@ -1,6 +1,6 @@
-// Pinch-to-zoom, drag-to-pan, double-tap/double-click, and scroll-wheel
-// zoom for the lightbox image. Works with Pointer Events so touch, mouse,
-// and trackpad all go through the same code path.
+// Pinch-to-zoom, drag-to-pan, double-tap (touch) / single-click (mouse),
+// and scroll-wheel zoom for the lightbox image. Works with Pointer Events
+// so touch, mouse, and trackpad all go through the same code path.
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
 const DOUBLE_TAP_MS = 300;
@@ -109,10 +109,23 @@ export function initZoom(img, { onSwipeLeft, onSwipeRight } = {}) {
   });
 
   function handlePointerUp(e) {
-    if (pointers.size === 1 && gestureStartScale === 1 && scale === 1) {
+    if (pointers.size === 1) {
       const dx = e.clientX - dragStartX;
       const dy = e.clientY - dragStartY;
-      if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      const moved = Math.hypot(dx, dy);
+
+      // A mouse click with negligible movement toggles zoom — matches the
+      // zoom-in/zoom-out cursor shown over the image. Touch keeps the
+      // separate double-tap detector above instead, since a plain tap is
+      // also how the lightbox itself gets opened/closed elsewhere.
+      if (e.pointerType === "mouse" && moved < 5) {
+        toggleZoom();
+      } else if (
+        gestureStartScale === 1 &&
+        scale === 1 &&
+        Math.abs(dx) > SWIPE_THRESHOLD &&
+        Math.abs(dx) > Math.abs(dy) * 1.5
+      ) {
         if (dx < 0) onSwipeLeft?.();
         else onSwipeRight?.();
       }
@@ -126,8 +139,6 @@ export function initZoom(img, { onSwipeLeft, onSwipeRight } = {}) {
   img.addEventListener("pointerup", handlePointerUp);
   img.addEventListener("pointercancel", endPointer);
   img.addEventListener("pointerleave", endPointer);
-
-  img.addEventListener("dblclick", toggleZoom);
 
   img.addEventListener(
     "wheel",
