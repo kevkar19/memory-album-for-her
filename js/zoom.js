@@ -1,9 +1,14 @@
 // Pinch-to-zoom, drag-to-pan, double-tap (touch) / single-click (mouse),
-// and scroll-wheel zoom for the lightbox image. Works with Pointer Events
-// so touch, mouse, and trackpad all go through the same code path.
+// and trackpad/wheel zoom for the lightbox image. Works with Pointer
+// Events so touch and mouse drag/pinch share one code path; trackpad
+// gestures come through as wheel events, where browsers set `ctrlKey` on
+// an actual pinch specifically to distinguish it from a plain two-finger
+// scroll — so ctrlKey wheel = zoom, plain wheel = pan (once zoomed in).
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
+const CLICK_ZOOM_SCALE = 2;
 const DOUBLE_TAP_MS = 300;
+const CLICK_ZOOM_TRANSITION_MS = 220;
 
 const SWIPE_THRESHOLD = 50;
 
@@ -30,6 +35,19 @@ export function initZoom(img, { onSwipeLeft, onSwipeRight } = {}) {
     img.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
   }
 
+  // Used only for the discrete click/tap toggle — a brief transition so it
+  // eases into place instead of snapping instantly. Continuous gestures
+  // (pinch, drag-pan, wheel) call setTransform() directly with no
+  // transition, since animating every intermediate frame would lag behind
+  // the pointer instead of tracking it live.
+  function setTransformAnimated() {
+    img.style.transition = `transform ${CLICK_ZOOM_TRANSITION_MS}ms ease`;
+    setTransform();
+    window.setTimeout(() => {
+      img.style.transition = "";
+    }, CLICK_ZOOM_TRANSITION_MS);
+  }
+
   function clamp() {
     if (scale <= 1) {
       originX = 0;
@@ -44,11 +62,14 @@ export function initZoom(img, { onSwipeLeft, onSwipeRight } = {}) {
 
   function toggleZoom() {
     if (scale > 1) {
-      reset();
+      scale = 1;
+      originX = 0;
+      originY = 0;
+      setTransformAnimated();
     } else {
-      scale = 2.5;
+      scale = CLICK_ZOOM_SCALE;
       clamp();
-      setTransform();
+      setTransformAnimated();
     }
   }
 
@@ -144,9 +165,20 @@ export function initZoom(img, { onSwipeLeft, onSwipeRight } = {}) {
     "wheel",
     (e) => {
       e.preventDefault();
-      scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale - e.deltaY * 0.0015));
-      clamp();
-      setTransform();
+
+      if (e.ctrlKey) {
+        // A real pinch on a trackpad (or ctrl+wheel) — browsers set ctrlKey
+        // specifically to flag this as a zoom gesture, not a scroll.
+        scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale - e.deltaY * 0.006));
+        clamp();
+        setTransform();
+      } else if (scale > 1) {
+        // Plain two-finger trackpad drag while zoomed in — pan instead.
+        originX -= e.deltaX;
+        originY -= e.deltaY;
+        clamp();
+        setTransform();
+      }
     },
     { passive: false }
   );
