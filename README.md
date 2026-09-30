@@ -20,7 +20,7 @@ index.html              Single-page app: cover/gate + gallery + composer + light
 css/style.css            All styling
 js/firebase-init.js      Firebase app + Firestore init
 js/cloudinary-config.js  Cloudinary cloud name / upload preset
-js/gate.js               Client-side PIN gate
+js/gate.js               PIN gate with a global, Firestore-synced lock state
 js/gallery.js            Upload/edit composer + live gallery + lightbox (Firestore + Cloudinary)
 js/utils.js              Shared helpers
 js/app.js                Bootstraps the gate + gallery
@@ -89,9 +89,35 @@ The passcode is currently **4ShaKever**. Only its SHA-256 hash is stored in
 printf '%s' 'your-new-pin' | openssl dgst -sha256
 ```
 
-Once someone enters the right PIN on a device, that device remembers it
-(`localStorage`) and won't be asked again. This is a casual deterrent, not
-real security — see below.
+The locked/unlocked state is **global**, not per device: it lives in a
+single Firestore document, `settings/lock` (`{ locked: bool, updatedAt }`).
+When anyone enters the right PIN, the app writes `locked: false` there;
+every open device is listening to that document in real time
+(`onSnapshot`) and unlocks the moment it changes — no need to re-enter the
+PIN on your own phone just because someone unlocked it on theirs. The
+lock icon inside the app writes `locked: true` back (after a confirm
+dialog), which immediately sends every open device — even one mid-scroll
+— back to the password screen. On first load, the app checks Firestore
+before showing anything, so the album never flashes on screen while
+locked; if the check fails (offline, blocked, etc.) it defaults to locked.
+
+**How secure this actually is, honestly:** the PIN itself is only checked
+in the browser — `PIN_HASH` in `js/gate.js` is plain, un-obfuscated
+JavaScript that ships to every visitor, so anyone who opens DevTools →
+Sources (or just views the page source) can read that hash. It's a SHA-256
+hash rather than the raw PIN, so a casual look at the source doesn't hand
+someone the passcode directly, but it's not a secret — a determined person
+could brute-force short PINs against that hash offline, and there's no
+mechanism (no backend, no Firebase Auth) that can distinguish "someone who
+typed the right PIN" from "someone who just called the Firestore write API
+directly" when deciding whether to flip `settings/lock`. So: this keeps
+out casual visitors and stray links, and (new) it now also gates the
+actual data — while `locked: true`, the Firestore rules refuse to let
+*anyone* read or write `photos`/`songs`/`albums`, not just hide them in the
+UI — but it is not real access control against someone who specifically
+wants in and is willing to poke at the API. Treat it the way you'd treat a
+door that's shut but not locked with a real key: enough to stop it from
+being casually stumbled into, not enough to stop a determined intruder.
 
 ## Deploying to GitHub Pages
 
@@ -122,8 +148,18 @@ would silently break the app.
 3. Replace the existing rules with the contents of that file, then **Publish**.
 
 What those rules do:
-- Allow public **read** of the `photos`, `songs`, and `albums` collections
-  (needed for the gallery to load with no login system).
+- A `settings/lock` document holds the global lock state (see
+  [The PIN gate](#the-pin-gate) above). It's always readable (every device
+  needs to check it before showing anything) and writable by anyone who
+  sends a well-shaped `{ locked: bool, updatedAt }` — there's no way to
+  cryptographically tie that write to "the correct PIN was entered"
+  without a real backend, so it's shape-validated only, same trust level
+  as everything else here.
+- Reads *and* writes on `photos`, `songs`, and `albums` now additionally
+  require `settings/lock.locked == false` — i.e. the album must be
+  unlocked. This means locking the album isn't just cosmetic: while
+  locked, the data itself is unreachable via the API too, not only hidden
+  by the app's UI.
 - On `photos`, allow **create** only when the new document has just the
   expected fields, a Cloudinary-hosted `url`, a reasonable-length
   `uploadedBy`, and — if present — a `caption` under 120 characters, a

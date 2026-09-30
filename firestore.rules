@@ -12,16 +12,38 @@ rules_version = '2';
 // end), so these rules cannot tell "us" apart from a stranger who found the
 // URL — they only constrain the *shape* of creates/edits so a bot or
 // scraper can't fill the database with junk. Photo deletes are
-// intentionally left open (see below) so either of you can remove a photo
-// from the app, which also means a stranger who found the URL could delete
-// photos too. See README.md for how to raise the bar further with
-// Firebase App Check.
+// intentionally left open while unlocked (see below) so either of you can
+// remove a photo from the app, which also means a stranger who found the
+// URL and also unlocked the album could delete photos too. See README.md
+// for how to raise the bar further with Firebase App Check, and for the
+// honest limits of what the settings/lock flag below actually protects.
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    match /photos/{photoId} {
+    // Global lock state, shared across every device in real time — see
+    // README.md for what this does and doesn't protect against. Reading
+    // it must always be open (every device needs to know whether to show
+    // the gate), and there's no way to cryptographically tie the write to
+    // "the correct PIN was entered" without a real backend, so this write
+    // is only shape-validated, same trust level as everything else below.
+    match /settings/lock {
       allow read: if true;
+      allow write: if request.resource.data.keys().hasOnly(['locked', 'updatedAt'])
+                     && request.resource.data.locked is bool;
+    }
+
+    // True while unlocked — missing/unreadable defaults to locked. Used to
+    // gate reads (and writes) on photos/songs/albums below, so that a
+    // stranger who bypasses the app UI can't read the data either, unless
+    // they also flip the same lock flag.
+    function isUnlocked() {
+      return exists(/databases/$(database)/documents/settings/lock)
+        && get(/databases/$(database)/documents/settings/lock).data.locked == false;
+    }
+
+    match /photos/{photoId} {
+      allow read: if isUnlocked();
 
       // Creating a photo: only via the app's upload flow, so the image
       // itself always comes from our Cloudinary account. `caption` is the
@@ -29,7 +51,8 @@ service cloud.firestore {
       // `songId` points at a document in the songs library, `songStart` is
       // the second offset for the 20-second clip loop, `albumId` points at
       // a document in the albums library.
-      allow create: if request.resource.data.keys().hasOnly(
+      allow create: if isUnlocked()
+                      && request.resource.data.keys().hasOnly(
                         ['url', 'publicId', 'width', 'height', 'uploadedBy', 'caption', 'subcaption', 'songId', 'songStart', 'albumId', 'createdAt']
                       )
                       && request.resource.data.url is string
@@ -53,7 +76,8 @@ service cloud.firestore {
       // Editing a photo: only caption/subcaption/songId/songStart/albumId/
       // favorite may change — the image, uploader, and timestamp are
       // immutable once created.
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption', 'subcaption', 'songId', 'songStart', 'albumId', 'favorite'])
+      allow update: if isUnlocked()
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption', 'subcaption', 'songId', 'songStart', 'albumId', 'favorite'])
                       && (!('caption' in request.resource.data) || request.resource.data.caption == null
                           || (request.resource.data.caption is string && request.resource.data.caption.size() < 120))
                       && (!('subcaption' in request.resource.data) || request.resource.data.subcaption == null
@@ -69,18 +93,20 @@ service cloud.firestore {
                               && exists(/databases/$(database)/documents/albums/$(request.resource.data.albumId))))
                       && (!('favorite' in request.resource.data) || request.resource.data.favorite is bool);
 
-      // Deleting a photo: open, by request — this app has no real auth, so
-      // this also means anyone with the site URL could delete photos, not
-      // just the two of you. Acceptable trade-off behind the PIN gate for
-      // a small shared album; revisit with Firebase Auth if that changes.
-      allow delete: if true;
+      // Deleting a photo: open (while unlocked), by request — this app has
+      // no real auth, so this also means anyone with the site URL who has
+      // also unlocked the album could delete photos, not just the two of
+      // you. Acceptable trade-off behind the PIN gate for a small shared
+      // album; revisit with Firebase Auth if that changes.
+      allow delete: if isUnlocked();
     }
 
     // The shared song library — uploaded audio files photos can link to.
     match /songs/{songId} {
-      allow read: if true;
+      allow read: if isUnlocked();
 
-      allow create: if request.resource.data.keys().hasOnly(
+      allow create: if isUnlocked()
+                      && request.resource.data.keys().hasOnly(
                         ['name', 'url', 'publicId', 'duration', 'uploadedBy', 'createdAt']
                       )
                       && request.resource.data.name is string
@@ -100,14 +126,15 @@ service cloud.firestore {
       // song a photo still references leaves that photo's song silently
       // unavailable rather than erroring.
       allow update: if false;
-      allow delete: if true;
+      allow delete: if isUnlocked();
     }
 
     // The shared album library — lightweight named groups of photos.
     match /albums/{albumId} {
-      allow read: if true;
+      allow read: if isUnlocked();
 
-      allow create: if request.resource.data.keys().hasOnly(['name', 'uploadedBy', 'createdAt'])
+      allow create: if isUnlocked()
+                      && request.resource.data.keys().hasOnly(['name', 'uploadedBy', 'createdAt'])
                       && request.resource.data.name is string
                       && request.resource.data.name.size() > 0
                       && request.resource.data.name.size() < 60
@@ -116,7 +143,8 @@ service cloud.firestore {
 
       // Renaming (name) and picking a cover photo (coverPhotoId) are the
       // only allowed edits, each independently.
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'coverPhotoId'])
+      allow update: if isUnlocked()
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'coverPhotoId'])
                       && request.resource.data.name is string
                       && request.resource.data.name.size() > 0
                       && request.resource.data.name.size() < 60
@@ -127,7 +155,7 @@ service cloud.firestore {
       // Deletable like songs/photos — the app clears albumId on every
       // member photo before deleting the album itself, so they become
       // ungrouped individual photos rather than orphaned references.
-      allow delete: if true;
+      allow delete: if isUnlocked();
     }
 
     // Deny everything else by default.

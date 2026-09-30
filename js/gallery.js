@@ -905,6 +905,13 @@ export function initGallery() {
     onSwipeRight: showPrevPhoto,
   });
 
+  // Another device just force-locked the album (see gate.js) — close
+  // anything open on this one too, even mid-scroll, and stop any audio.
+  window.addEventListener("album:locked", () => {
+    closeLightbox();
+    closeComposer();
+  });
+
   wireClipLoop(document.getElementById("composer-preview-audio"), getComposerClipStart);
 
   document.getElementById("fav-filter-btn").addEventListener("click", () => {

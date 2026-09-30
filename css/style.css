@@ -215,6 +215,12 @@ button {
   border-color: var(--rose-deep);
 }
 
+#gate-input:disabled,
+#gate-form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 #gate-form button {
   background: none;
   border: none;
